@@ -1,0 +1,6 @@
+{
+  "forecasting": {
+    "question": "Given the context {context_description}, predict the value of node {node_id} for the next {prediction_length} steps.",
+    "answer":"{values}"
+  }
+}

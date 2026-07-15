@@ -1,0 +1,23 @@
+{
+  "temporal": {
+    "drift_type": "Question: What is the evolution pattern of node {node_id} during the time range {time_range}? Answer: {drift_type}",
+    "baseline": "Question: What is the long-term baseline value of node {node_id} during the time range {time_range}? Answer: {baseline}",
+    "kappa": "Question: What is the mean reversion speed (kappa) of node {node_id} during the time range {time_range}? Answer: {kappa}",
+    "sigma": "Question: What is the random fluctuation intensity (sigma) of node {node_id} during the time range {time_range}? Answer: {sigma}",
+    "lambda": "Question: What is the coupling strength (lambda) of node {node_id} during the time range {time_range}? Answer: {lambda}",
+    "diffusion_shape": "Question: What is the diffusion shape (diffusion_shape) of node {node_id} during the time range {time_range}? Answer: {diffusion_shape}",
+    "sinusoidal_A": "Question: What is the sinusoidal amplitude (A) of node {node_id} during the time range {time_range}? Answer: {A}",
+    "sinusoidal_omega": "Question: What is the sinusoidal frequency (omega) of node {node_id} during the time range {time_range}? Answer: {omega}",
+    "sinusoidal_phi": "Question: What is the sinusoidal phase (phi) of node {node_id} during the time range {time_range}? Answer: {phi}"
+  },
+  "spatial": {
+    "edge_relationship": "Question: Is there a direct connection from node {src} to node {tgt}? Answer: {answer}",
+    "indirect_connection": "Question: Is there an indirect path (through one or more intermediate nodes) from node {src} to node {tgt}? Answer: {answer}"
+  },
+  "spatial_temporal": {
+    "node_type": "Question: What is the type of node {node_id}? demand_source or propagation? Answer: {node_type}",
+    "edge_lag": "Question: What is the time lag between node {src} and node {tgt}? Answer: {lag}",
+    "edge_modulation": "Question: What is the modulation multiplier (multiplier) of edge {edge} during the time range {time_range}? Answer: {multiplier}",
+    "effective_coupling_strength": "Question: What is the effective coupling strength of edge {edge} during the time range {time_range}? Answer: {multiplier * base_adjacency}"
+  }
+}
