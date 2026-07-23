@@ -1,0 +1,398 @@
+{
+  "entry_module": "demo_sts_stpp_v27",
+  "module_count": 78,
+  "bundle_sha256": "67f0f4ba05b9f5bed9e6a5523dda4e645fdc06a0a9270578acc468a7f0453a19",
+  "behavior": "validated original v27; no release fixes or Judge overrides",
+  "modules": {
+    "demo_sts_sde": {
+      "relative_path": "demo_sts_sde.py",
+      "sha256": "fb7689f0c6c2a3962eb366f364fa42c9f7b0b61cd90862f24015e4a783478ecf",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\demo_sts_sde.py"
+    },
+    "demo_sts_stpp": {
+      "relative_path": "demo_sts_stpp.py",
+      "sha256": "2b02879548178c300276dad221995dd4dd78a4c6948187c5692e7cc478b72fd5",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\demo_sts_stpp.py"
+    },
+    "demo_sts_stpp_v12": {
+      "relative_path": "demo_sts_stpp_v12.py",
+      "sha256": "c22eee4ae1b6a9b487e14608d090144b6a843d6146ff505e65782c151f8ca24a",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\demo_sts_stpp_v12.py"
+    },
+    "demo_sts_stpp_v16": {
+      "relative_path": "demo_sts_stpp_v16.py",
+      "sha256": "5e3f1186b47b530d1cd3824914484ee13c9cea6befc915b61a70ac1f499f223b",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\demo_sts_stpp_v16.py"
+    },
+    "demo_sts_stpp_v17": {
+      "relative_path": "demo_sts_stpp_v17.py",
+      "sha256": "06d3dab38ae1191060808d1c32aad660189e40f1344fa6e40bfd0aa96589d578",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\demo_sts_stpp_v17.py"
+    },
+    "demo_sts_stpp_v18": {
+      "relative_path": "demo_sts_stpp_v18.py",
+      "sha256": "3afa7649d832fbaa14a7c0bfb0c4141fc83eb10133daf4659d8e205eab9d3241",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\demo_sts_stpp_v18.py"
+    },
+    "demo_sts_stpp_v19": {
+      "relative_path": "demo_sts_stpp_v19.py",
+      "sha256": "fcf4d7c09ba4dd384e41dd0cf2f93c4e8e64e8e9ae83dfe68560ba0cbb65381e",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\demo_sts_stpp_v19.py"
+    },
+    "demo_sts_stpp_v2": {
+      "relative_path": "demo_sts_stpp_v2.py",
+      "sha256": "18fd1b4ed3bf661d842b2c1129be9870fa6330d5163fa210f2e5e24981b2d6dd",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\demo_sts_stpp_v2.py"
+    },
+    "demo_sts_stpp_v20": {
+      "relative_path": "demo_sts_stpp_v20.py",
+      "sha256": "ad1bad0f43c2d5d43a3e81f8e298e9ae25bcac40b222cb5587ef0f69cc9a910b",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\demo_sts_stpp_v20.py"
+    },
+    "demo_sts_stpp_v21": {
+      "relative_path": "demo_sts_stpp_v21.py",
+      "sha256": "7f62bcfac545e303e8ce59a95301a29cd21f0cb847a2b3f656aa35d9dee1fdad",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\demo_sts_stpp_v21.py"
+    },
+    "demo_sts_stpp_v22": {
+      "relative_path": "demo_sts_stpp_v22.py",
+      "sha256": "67f9e64c652c169e97aee2e4aa1741b570c83d33b529f46713ee266d7a7ad365",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\demo_sts_stpp_v22.py"
+    },
+    "demo_sts_stpp_v23": {
+      "relative_path": "demo_sts_stpp_v23.py",
+      "sha256": "a4666cb4531d9073f9061dbb7e2be9a39ced0eb2743744a128d8d058b49ebd4c",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\demo_sts_stpp_v23.py"
+    },
+    "demo_sts_stpp_v24": {
+      "relative_path": "demo_sts_stpp_v24.py",
+      "sha256": "f19a14754bc82b84eab8341c9d2ab92c31ee04ec30dc113434d2521dd794087b",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\demo_sts_stpp_v24.py"
+    },
+    "demo_sts_stpp_v25": {
+      "relative_path": "demo_sts_stpp_v25.py",
+      "sha256": "6abae406a26177d9b3783b60705ed8c7f16fc0ffdb7e43cdb870d93f720e1640",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\demo_sts_stpp_v25.py"
+    },
+    "demo_sts_stpp_v26": {
+      "relative_path": "demo_sts_stpp_v26.py",
+      "sha256": "66a8dc9b09b3c59668835e570c2166877b22b5c4e70795f555b32877f449a1f3",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\demo_sts_stpp_v26.py"
+    },
+    "demo_sts_stpp_v27": {
+      "relative_path": "demo_sts_stpp_v27.py",
+      "sha256": "ff4f4c956c45daf3bbab2fdc3af379d05a6b7f461320a786309719b8a28db287",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\demo_sts_stpp_v27.py"
+    },
+    "demo_sts_stpp_v4": {
+      "relative_path": "demo_sts_stpp_v4.py",
+      "sha256": "36c19f1adc68f34e10d4803f8ec284005b5257f78c3ea08351ae80e378c5cf26",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\demo_sts_stpp_v4.py"
+    },
+    "demo_sts_stpp_v5": {
+      "relative_path": "demo_sts_stpp_v5.py",
+      "sha256": "dd8a146e0cb92beabcc8d2a138954fcc6a86fbb02ec77646caedd1594a7b9e63",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\demo_sts_stpp_v5.py"
+    },
+    "demo_sts_stpp_v6": {
+      "relative_path": "demo_sts_stpp_v6.py",
+      "sha256": "99482bb4f8105d67d257ed5ec5f5ad3a7b89476fd9113fa1f2f3cf1a91d3d133",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\demo_sts_stpp_v6.py"
+    },
+    "demo_sts_stpp_v8": {
+      "relative_path": "demo_sts_stpp_v8.py",
+      "sha256": "686f6345cb22b6592fb39a0c2706465595ac35065f862df4cd089ac89bd30731",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\demo_sts_stpp_v8.py"
+    },
+    "llm_client": {
+      "relative_path": "llm_client.py",
+      "sha256": "8decf789acc6bb1f93bd6055992829f3941f89c86d28da1303c1da9068fbe3ff",
+      "source_snapshot": "F:\\Desktop\\llm_client.py"
+    },
+    "prompts": {
+      "relative_path": "prompts/__init__.py",
+      "sha256": "b6c0baac4311247c8c5de8a5d2e79006d66e2d588ca43d2a86ef177efc2f5791",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\__init__.py"
+    },
+    "prompts.judge_parameter_validation_prompt": {
+      "relative_path": "prompts/judge_parameter_validation_prompt.py",
+      "sha256": "52e9f6479c2faf5ed3d2d44367a6acf0fc6c1c459f83d755430c2c544b97072f",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\judge_parameter_validation_prompt.py"
+    },
+    "prompts.judge_scenario_parsing_prompt": {
+      "relative_path": "prompts/judge_scenario_parsing_prompt.py",
+      "sha256": "4c3001a501da737b1878a7815edbf1330eb6f31e4dc0c5ab3455f50039e26b3c",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\judge_scenario_parsing_prompt.py"
+    },
+    "prompts.judge_scenario_parsing_prompt_stpp_v12": {
+      "relative_path": "prompts/judge_scenario_parsing_prompt_stpp_v12.py",
+      "sha256": "0c558d274722849e4d44dbfabd9d408c9213d06f89e33852f584da13528329a7",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\judge_scenario_parsing_prompt_stpp_v12.py"
+    },
+    "prompts.judge_scenario_parsing_prompt_stpp_v13": {
+      "relative_path": "prompts/judge_scenario_parsing_prompt_stpp_v13.py",
+      "sha256": "a3c973e8d8ccee64433267d136f0691d2d2d4682bcf328566e220c6b65f6d5c8",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\judge_scenario_parsing_prompt_stpp_v13.py"
+    },
+    "prompts.judge_scenario_parsing_prompt_stpp_v14": {
+      "relative_path": "prompts/judge_scenario_parsing_prompt_stpp_v14.py",
+      "sha256": "38aabcef125a862021aab0f720ac3c7e617df62c861d08764d02845655611d7d",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\judge_scenario_parsing_prompt_stpp_v14.py"
+    },
+    "prompts.judge_scenario_parsing_prompt_stpp_v15": {
+      "relative_path": "prompts/judge_scenario_parsing_prompt_stpp_v15.py",
+      "sha256": "de275e852687ec5089ec54da7707c2bb5d4a97d1723a8d39baae35bac06329a9",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\judge_scenario_parsing_prompt_stpp_v15.py"
+    },
+    "prompts.judge_scenario_parsing_prompt_stpp_v16": {
+      "relative_path": "prompts/judge_scenario_parsing_prompt_stpp_v16.py",
+      "sha256": "a2aa2a2feb31556d6660a5147c53b90ab3984a3cb5ce6850edf98ef9c1ac8d04",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\judge_scenario_parsing_prompt_stpp_v16.py"
+    },
+    "prompts.judge_scenario_parsing_prompt_stpp_v17": {
+      "relative_path": "prompts/judge_scenario_parsing_prompt_stpp_v17.py",
+      "sha256": "f056420022467076b9c9c43109a5ee71c14e865b1f04c1cb97efcc3f331b5f82",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\judge_scenario_parsing_prompt_stpp_v17.py"
+    },
+    "prompts.judge_scenario_parsing_prompt_stpp_v19": {
+      "relative_path": "prompts/judge_scenario_parsing_prompt_stpp_v19.py",
+      "sha256": "24e61437d36e7c304994972aff2b95897d3a3845ec174a0c42a79476384ebebf",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\judge_scenario_parsing_prompt_stpp_v19.py"
+    },
+    "prompts.judge_stpp_data_prompt_v17": {
+      "relative_path": "prompts/judge_stpp_data_prompt_v17.py",
+      "sha256": "d872d63443636ae143423482b270acaa323d08f12b3e0c5a498167407ac30442",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\judge_stpp_data_prompt_v17.py"
+    },
+    "prompts.scenario_generation_agent_prompt": {
+      "relative_path": "prompts/scenario_generation_agent_prompt.py",
+      "sha256": "f8e595c58b80bae18333263fc743340d8a5787141276eb5a7ba543eb02b5f44c",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\scenario_generation_agent_prompt.py"
+    },
+    "prompts.scenario_generation_agent_prompt_stpp_v12": {
+      "relative_path": "prompts/scenario_generation_agent_prompt_stpp_v12.py",
+      "sha256": "2984d674c8aa837ccc8ca8122f46514db8574e0ced02ae37a1aaa7218c6ed903",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\scenario_generation_agent_prompt_stpp_v12.py"
+    },
+    "prompts.scenario_generation_agent_prompt_stpp_v13": {
+      "relative_path": "prompts/scenario_generation_agent_prompt_stpp_v13.py",
+      "sha256": "45669529d77d116beb2255e01c689c7498e9c3c6d77af77406c668581006d830",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\scenario_generation_agent_prompt_stpp_v13.py"
+    },
+    "prompts.scenario_generation_agent_prompt_stpp_v14": {
+      "relative_path": "prompts/scenario_generation_agent_prompt_stpp_v14.py",
+      "sha256": "85939660ff9fcec6ac66845e73e572ad5e95aeeb8b47698b037215ab632496dc",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\scenario_generation_agent_prompt_stpp_v14.py"
+    },
+    "prompts.scenario_generation_agent_prompt_stpp_v15": {
+      "relative_path": "prompts/scenario_generation_agent_prompt_stpp_v15.py",
+      "sha256": "1d1f9d518420849653f7c813a3ab0147ddd96003b4f4a2b2b45c1cd3a23c5a40",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\scenario_generation_agent_prompt_stpp_v15.py"
+    },
+    "prompts.scenario_generation_agent_prompt_stpp_v16": {
+      "relative_path": "prompts/scenario_generation_agent_prompt_stpp_v16.py",
+      "sha256": "167542b0f39a8d7fac5c13b4f08cb8bd04c24ce097070087e1058d71fd89236b",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\scenario_generation_agent_prompt_stpp_v16.py"
+    },
+    "prompts.scenario_generation_agent_prompt_stpp_v17": {
+      "relative_path": "prompts/scenario_generation_agent_prompt_stpp_v17.py",
+      "sha256": "2a02e7bb315e60d697bbeb3809204a4c67791ebb0a26bf29e060d40dd33a519e",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\scenario_generation_agent_prompt_stpp_v17.py"
+    },
+    "prompts.scenario_generation_agent_prompt_stpp_v19": {
+      "relative_path": "prompts/scenario_generation_agent_prompt_stpp_v19.py",
+      "sha256": "0e1ca1be9e92020218d430d4292cafdc06bfbe2a54ecda449c09a07a1b0e8b57",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\scenario_generation_agent_prompt_stpp_v19.py"
+    },
+    "prompts.scenario_generation_agent_prompt_stpp_v23": {
+      "relative_path": "prompts/scenario_generation_agent_prompt_stpp_v23.py",
+      "sha256": "488eea05d6e1616973ce3b1127e422363bd4572bc333096b1cc18cbe3ca57471",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\scenario_generation_agent_prompt_stpp_v23.py"
+    },
+    "prompts.scenario_generation_agent_prompt_stpp_v25": {
+      "relative_path": "prompts/scenario_generation_agent_prompt_stpp_v25.py",
+      "sha256": "a5115ea9ec564753c3469532ea0eff7508192cc1578ebd6d4295d56ebf3bb2f2",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\scenario_generation_agent_prompt_stpp_v25.py"
+    },
+    "prompts.scenario_parsing_agent_prompt": {
+      "relative_path": "prompts/scenario_parsing_agent_prompt.py",
+      "sha256": "f73f37cceb0503596e33a7aa86198015ce3d3e54c8b87ed2d6fc35b6132ad333",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\scenario_parsing_agent_prompt.py"
+    },
+    "prompts.scenario_parsing_agent_prompt_stpp_v12": {
+      "relative_path": "prompts/scenario_parsing_agent_prompt_stpp_v12.py",
+      "sha256": "0d95679a766a67a02dd6969020cc5b5361eabc4facced6d0f98b170825db5448",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\scenario_parsing_agent_prompt_stpp_v12.py"
+    },
+    "prompts.scenario_parsing_agent_prompt_stpp_v13": {
+      "relative_path": "prompts/scenario_parsing_agent_prompt_stpp_v13.py",
+      "sha256": "5ae048972ff37286fdfe787923a7fd67168fae13b6d0adee4d9998bbe27c85ef",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\scenario_parsing_agent_prompt_stpp_v13.py"
+    },
+    "prompts.scenario_parsing_agent_prompt_stpp_v14": {
+      "relative_path": "prompts/scenario_parsing_agent_prompt_stpp_v14.py",
+      "sha256": "982034321cb2208801eb6df021f28f1efb84b61e114aff350ed49db49192208d",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\scenario_parsing_agent_prompt_stpp_v14.py"
+    },
+    "prompts.scenario_parsing_agent_prompt_stpp_v15": {
+      "relative_path": "prompts/scenario_parsing_agent_prompt_stpp_v15.py",
+      "sha256": "3ce1ffe38b4b8394fbc7dc9850eaa21c93436b3c214a585e0547ac3772f37935",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\scenario_parsing_agent_prompt_stpp_v15.py"
+    },
+    "prompts.scenario_parsing_agent_prompt_stpp_v16": {
+      "relative_path": "prompts/scenario_parsing_agent_prompt_stpp_v16.py",
+      "sha256": "3df7e4c115cdcb5cacb88984b5dbc21486f917c210e5ac683cb60c6adbb490e3",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\scenario_parsing_agent_prompt_stpp_v16.py"
+    },
+    "prompts.scenario_parsing_agent_prompt_stpp_v17": {
+      "relative_path": "prompts/scenario_parsing_agent_prompt_stpp_v17.py",
+      "sha256": "ef675b9f1275594aceffe7bfd257890e7c0059d9a66703271dcfddd567932bf5",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\scenario_parsing_agent_prompt_stpp_v17.py"
+    },
+    "prompts.scenario_parsing_agent_prompt_stpp_v19": {
+      "relative_path": "prompts/scenario_parsing_agent_prompt_stpp_v19.py",
+      "sha256": "bacb5235f70368a32b500fc64cb16219b3358d2938ca9807741ba43b687eb682",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\scenario_parsing_agent_prompt_stpp_v19.py"
+    },
+    "prompts.sde_parameters_generation_agent_prompt": {
+      "relative_path": "prompts/sde_parameters_generation_agent_prompt.py",
+      "sha256": "24e22a9dcec18b5e8b99e2c3dd5e369ecfd7cff49602807295d08bb16f0171cf",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\sde_parameters_generation_agent_prompt.py"
+    },
+    "prompts.time_varying_adjacency_agent_prompt": {
+      "relative_path": "prompts/time_varying_adjacency_agent_prompt.py",
+      "sha256": "f9296878f4956c2fd82e01855dfd37aa782c2fe4c1b4dda0efcbc4b0745a66b3",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\prompts\\time_varying_adjacency_agent_prompt.py"
+    },
+    "safe_judge_generator": {
+      "relative_path": "safe_judge_generator.py",
+      "sha256": "18e760fd970962ec332e11edf264d1d8918f71e90c9d84d4299803672b29599d",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\safe_judge_generator.py"
+    },
+    "safe_judge_generator_v12": {
+      "relative_path": "safe_judge_generator_v12.py",
+      "sha256": "dd6bd8abff285903723e561411d2244042b4261c75d9cb2b7378ba33004d42e7",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\safe_judge_generator_v12.py"
+    },
+    "safe_judge_generator_v16": {
+      "relative_path": "safe_judge_generator_v16.py",
+      "sha256": "cf4fae3627741d941d0b4bdcc5048e513b7225fd6a6c78b35a467d934043b775",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\safe_judge_generator_v16.py"
+    },
+    "safe_judge_generator_v17": {
+      "relative_path": "safe_judge_generator_v17.py",
+      "sha256": "18b200bfaa606d376b57f0bd56ae2ae1cfaa466e485e1585f12a88151d308a3c",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\safe_judge_generator_v17.py"
+    },
+    "stpp_adapter": {
+      "relative_path": "stpp_adapter.py",
+      "sha256": "f0f984e03f23d5f676aa85b316e558de0202749e73f51a8a684b05398292dee4",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter.py"
+    },
+    "stpp_adapter_v10": {
+      "relative_path": "stpp_adapter_v10.py",
+      "sha256": "830412f88f1d35403a1c848fad338203ed4ba5db0fc8a7b60de62ba220843706",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v10.py"
+    },
+    "stpp_adapter_v11": {
+      "relative_path": "stpp_adapter_v11.py",
+      "sha256": "b66e4e8810b575c5a8d56613b993e7a5a6318dbdaa2c51fac523d1c1989cf457",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v11.py"
+    },
+    "stpp_adapter_v12": {
+      "relative_path": "stpp_adapter_v12.py",
+      "sha256": "56050d32892ec8ca0ace1336d2d4d80d26763241cb7805b68b7261eae13259d2",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v12.py"
+    },
+    "stpp_adapter_v13": {
+      "relative_path": "stpp_adapter_v13.py",
+      "sha256": "c6d146f35e74670be2afa5aa877d71eb54da769167c367c34dcca4b67321d647",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v13.py"
+    },
+    "stpp_adapter_v14": {
+      "relative_path": "stpp_adapter_v14.py",
+      "sha256": "8a81a3791eeea78a12130625ed91b293b0f808aa887a0e918b6ab311e59e6465",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v14.py"
+    },
+    "stpp_adapter_v15": {
+      "relative_path": "stpp_adapter_v15.py",
+      "sha256": "5b7b07fc1b7fc1156ee3cd18530caf01c8f341375901a46a587f18575f534dcf",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v15.py"
+    },
+    "stpp_adapter_v16": {
+      "relative_path": "stpp_adapter_v16.py",
+      "sha256": "e87bb73f82131749085298ca43faf127f191e92e64314fa6945a9f8f5a554d92",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v16.py"
+    },
+    "stpp_adapter_v19": {
+      "relative_path": "stpp_adapter_v19.py",
+      "sha256": "cd8a151a181e7d18c276353ef48bf2fb861babeced7ee98caaac94a644c3b948",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v19.py"
+    },
+    "stpp_adapter_v2": {
+      "relative_path": "stpp_adapter_v2.py",
+      "sha256": "6475ac25f3c3387c13890c2d86dd7e75f5c5a0c8357c6b0abb0d04b2c9bfe4e4",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v2.py"
+    },
+    "stpp_adapter_v23": {
+      "relative_path": "stpp_adapter_v23.py",
+      "sha256": "c809986821a33973766a2e1d77c734c1a726793cfa958841ea72c77c122d9848",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v23.py"
+    },
+    "stpp_adapter_v24": {
+      "relative_path": "stpp_adapter_v24.py",
+      "sha256": "fff888e3e56745cc2a63cafca7de8dd861ad0ae48e56485a6fdd829226878494",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v24.py"
+    },
+    "stpp_adapter_v26": {
+      "relative_path": "stpp_adapter_v26.py",
+      "sha256": "c6a2526d37257b971024ce4ef50a873d7b0ee0fdeaddc1f9e0a4ea70e6f13dc3",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v26.py"
+    },
+    "stpp_adapter_v27": {
+      "relative_path": "stpp_adapter_v27.py",
+      "sha256": "505eba89b20f303e8bf94dd8b877c40c201e953fbb8f6fbee7d76c84a417b2aa",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\stpp_adapter_v27.py"
+    },
+    "stpp_adapter_v3": {
+      "relative_path": "stpp_adapter_v3.py",
+      "sha256": "06a2721a0f1c3a93c8b2b8c452f749c0cfe48899728fb4861334c475fe0aa15c",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v3.py"
+    },
+    "stpp_adapter_v4": {
+      "relative_path": "stpp_adapter_v4.py",
+      "sha256": "ae22bdd0b65b4fec37f566586efcca60afaa64755e179019f53831fc2d5ffece",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v4.py"
+    },
+    "stpp_adapter_v5": {
+      "relative_path": "stpp_adapter_v5.py",
+      "sha256": "e3632428727645db9fc73049a43605add0a4c3ba12875a645171cd10f1a951a5",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v5.py"
+    },
+    "stpp_adapter_v6": {
+      "relative_path": "stpp_adapter_v6.py",
+      "sha256": "52754ec9baa1eff44acbde97c49a275986001c52ddcd4314372c69f036ac67b0",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v6.py"
+    },
+    "stpp_adapter_v6_listfix": {
+      "relative_path": "stpp_adapter_v6_listfix.py",
+      "sha256": "162f078ae2bf23fe829073844b83e6f237c4a4296794f77cd55476f47f105add",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v6_listfix.py"
+    },
+    "stpp_adapter_v7": {
+      "relative_path": "stpp_adapter_v7.py",
+      "sha256": "e43c1f5f3b6b43c13f7c6c2a1301a3932be9d922a90a6b21242a3aee5c75a092",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v7.py"
+    },
+    "stpp_adapter_v8": {
+      "relative_path": "stpp_adapter_v8.py",
+      "sha256": "4966bb0527603a11c20215ad23184876f67cf0209d228ba72db8a582f721edc7",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v8.py"
+    },
+    "stpp_adapter_v9": {
+      "relative_path": "stpp_adapter_v9.py",
+      "sha256": "154d78fb83373a6ead8e17d90e859f90de0b71c5169ab391ef901c43b3edd73b",
+      "source_snapshot": "F:\\Desktop\\实验室\\STReasoner\\data_generation\\legacy_stpp\\stpp_adapter_v9.py"
+    }
+  }
+}

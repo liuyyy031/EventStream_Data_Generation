@@ -1,0 +1,43 @@
+================================================================================
+Agent交互摘要报告 - Session 20260721_191359
+================================================================================
+
+总交互次数: 7
+涉及Agent数量: 2
+
+各Agent交互统计:
+--------------------------------------------------------------------------------
+
+Agent 1: Scenario Generation:
+  - 交互次数: 1
+  - 迭代轮数: [1]
+
+Agent 2: Scenario Parsing:
+  - 交互次数: 6
+  - 迭代轮数: [1, 2, 3, 4, 5, 6]
+
+================================================================================
+详细交互时间线:
+================================================================================
+
+1. [2026-07-21T19:14:11.910384] Agent 1: Scenario Generation (迭代 1)
+   元数据: {'scenario_length': 4902, 'is_revision': False, 'mode': 'generation'}
+
+2. [2026-07-21T19:14:23.314521] Agent 2: Scenario Parsing (迭代 1)
+   元数据: {'has_feedback': False, 'num_nodes': 3, 'num_edges': 3, 'validation_passed': True}
+
+3. [2026-07-21T19:14:35.381426] Agent 2: Scenario Parsing (迭代 2)
+   元数据: {'has_feedback': True, 'num_nodes': 3, 'num_edges': 3, 'validation_passed': True}
+
+4. [2026-07-21T19:14:47.693541] Agent 2: Scenario Parsing (迭代 3)
+   元数据: {'has_feedback': True, 'num_nodes': 3, 'num_edges': 3, 'validation_passed': True}
+
+5. [2026-07-21T19:15:00.686550] Agent 2: Scenario Parsing (迭代 4)
+   元数据: {'has_feedback': True, 'num_nodes': 3, 'num_edges': 3, 'validation_passed': True}
+
+6. [2026-07-21T19:15:11.965550] Agent 2: Scenario Parsing (迭代 5)
+   元数据: {'has_feedback': True, 'num_nodes': 3, 'num_edges': 3, 'validation_passed': True}
+
+7. [2026-07-21T19:15:24.679354] Agent 2: Scenario Parsing (迭代 6)
+   元数据: {'has_feedback': True, 'num_nodes': 3, 'num_edges': 3, 'validation_passed': True}
+

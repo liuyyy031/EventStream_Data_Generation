@@ -1,0 +1,1 @@
+========== seed=4 ========== python demo_sts_stpp_v16.py --num_nodes 3 --domain Transportation --judges 1 --seed 4 --output_dir output_stpp_v16_seed4
