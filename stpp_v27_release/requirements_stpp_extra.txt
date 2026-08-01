@@ -1,0 +1,5 @@
+# Extra runtime dependencies used by the upstream STPPG repository.
+# Install these in addition to STReasoner's requirements.txt.
+arrow
+scipy
+
