@@ -1,0 +1,4 @@
+{"network_id": "transport_network_001_000", "domain": "transportation", "structure_family": "corridor", "entity_count": 1001, "edge_count": 1149, "max_out_degree": 3, "representation": "sparse_directed_edge_list"}
+{"network_id": "transport_network_001_001", "domain": "transportation", "structure_family": "grid", "entity_count": 1001, "edge_count": 2726, "max_out_degree": 6, "representation": "sparse_directed_edge_list"}
+{"network_id": "transport_network_001_002", "domain": "transportation", "structure_family": "hub", "entity_count": 1001, "edge_count": 1815, "max_out_degree": 6, "representation": "sparse_directed_edge_list"}
+{"network_id": "transport_network_001_003", "domain": "transportation", "structure_family": "random_connected", "entity_count": 1001, "edge_count": 1149, "max_out_degree": 5, "representation": "sparse_directed_edge_list"}

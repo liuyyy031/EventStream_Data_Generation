@@ -1,0 +1,54 @@
+{
+  "passed": true,
+  "episode_count": 100,
+  "validation_failure_count": 0,
+  "text_alignment_failure_count": 0,
+  "total_event_count": 1547,
+  "event_type_counts": {
+    "transportation.weather.heavy_rain.start": 41,
+    "transportation.road.incident.vehicle_collision": 102,
+    "transportation.road.traffic_state.congestion_onset": 763,
+    "transportation.road.traffic_state.normal_flow_restored": 553,
+    "transportation.weather.heavy_rain.end": 38,
+    "transportation.road.operation.closure.start": 25,
+    "transportation.road.operation.closure.end": 25
+  },
+  "relation_type_counts": {
+    "transportation.weather_contributes_to_collision": 23,
+    "transportation.weather_contributes_to_congestion": 23,
+    "transportation.initiates_congestion": 100,
+    "transportation.propagates_downstream": 645,
+    "transportation.transitions_to_recovery": 553,
+    "transportation.weather_clears": 38,
+    "transportation.closure_reopens": 25,
+    "transportation.weather_induces_congestion": 18
+  },
+  "candidate_status_counts": {
+    "fired": 1547,
+    "right_censored": 241,
+    "cancelled": 162
+  },
+  "scenario_counts": {
+    "compound_weather_accident": 23,
+    "planned_closure": 25,
+    "accident_propagation": 34,
+    "weather_disruption": 18
+  },
+  "temporal_model_usage_counts": {
+    "transportation.weather_arrival.prior_v1": 41,
+    "transportation.weather_duration.prior_v1": 41,
+    "transportation.weather_to_collision.prior_v1": 23,
+    "transportation.incident_to_congestion.prior_v1": 102,
+    "transportation.propagation_hazard.prior_v1": 819,
+    "transportation.recovery_hazard.prior_v1": 763,
+    "core.scheduled": 25,
+    "transportation.closure_duration.prior_v1": 25,
+    "transportation.root_arrival.prior_v1": 93,
+    "transportation.weather_to_congestion.prior_v1": 18
+  },
+  "termination_reason_counts": {
+    "observation_window_ended": 100
+  },
+  "administratively_truncated_episode_count": 0,
+  "statistical_realism": "not_claimed_without_domain_fit_and_holdout_validation"
+}

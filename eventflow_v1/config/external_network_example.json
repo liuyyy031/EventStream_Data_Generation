@@ -1,0 +1,35 @@
+{
+  "network_id": "external_transport_example",
+  "structure_family": "external_example",
+  "entities": [
+    {
+      "entity_id": "region_0000",
+      "network_id": "external_transport_example",
+      "entity_type": "region",
+      "attributes": {"name": "example_region"}
+    },
+    {
+      "entity_id": "road_A",
+      "network_id": "external_transport_example",
+      "entity_type": "road_segment",
+      "attributes": {"region_id": "region_0000", "length_km": 1.0, "capacity_vehicles_per_hour": 1200, "speed_limit_kph": 50, "lanes": 2}
+    },
+    {
+      "entity_id": "road_B",
+      "network_id": "external_transport_example",
+      "entity_type": "road_segment",
+      "attributes": {"region_id": "region_0000", "length_km": 0.8, "capacity_vehicles_per_hour": 1000, "speed_limit_kph": 40, "lanes": 2}
+    }
+  ],
+  "edges": [
+    {
+      "edge_id": "edge_A_B",
+      "network_id": "external_transport_example",
+      "source_entity_id": "road_A",
+      "target_entity_id": "road_B",
+      "edge_type": "downstream_reachability",
+      "attributes": {"distance_km": 0.8, "free_flow_travel_seconds": 57.6, "propagation_eligible": true}
+    }
+  ]
+}
+

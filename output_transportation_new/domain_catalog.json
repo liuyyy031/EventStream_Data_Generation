@@ -1,0 +1,170 @@
+{
+  "domain": "transportation",
+  "vocabulary_policy": "open_namespaced_hierarchy",
+  "fit_status": "transparent_synthetic_prior_pending_empirical_fit",
+  "text_projection": {
+    "mode": "deterministic_grounded_projection",
+    "free_form_causal_completion": false,
+    "alignment_unit": "sentence_to_event_or_relation_ids"
+  },
+  "entity_types": [
+    {
+      "entity_type_id": "transportation.region",
+      "parent_type_id": null,
+      "required_attributes": [
+        "name"
+      ]
+    },
+    {
+      "entity_type_id": "transportation.road.segment",
+      "parent_type_id": "transportation.infrastructure",
+      "required_attributes": [
+        "region_id",
+        "length_km",
+        "speed_limit_kph",
+        "capacity_vehicles_per_hour",
+        "baseline_volume_capacity_ratio"
+      ]
+    }
+  ],
+  "event_types": [
+    {
+      "event_type_id": "transportation.road.incident.vehicle_collision",
+      "parent_type_id": "transportation.road.incident",
+      "required_attributes": [
+        "severity",
+        "lanes_blocked"
+      ]
+    },
+    {
+      "event_type_id": "transportation.road.traffic_state.congestion_onset",
+      "parent_type_id": "transportation.road.traffic_state",
+      "required_attributes": [
+        "severity",
+        "propagation_depth"
+      ]
+    },
+    {
+      "event_type_id": "transportation.road.traffic_state.normal_flow_restored",
+      "parent_type_id": "transportation.road.traffic_state",
+      "required_attributes": [
+        "recovered_from_severity"
+      ]
+    },
+    {
+      "event_type_id": "transportation.weather.heavy_rain.start",
+      "parent_type_id": "transportation.weather.precipitation",
+      "required_attributes": [
+        "severity",
+        "coverage_fraction"
+      ]
+    },
+    {
+      "event_type_id": "transportation.weather.heavy_rain.end",
+      "parent_type_id": "transportation.weather.precipitation",
+      "required_attributes": [
+        "ended_severity"
+      ]
+    },
+    {
+      "event_type_id": "transportation.road.operation.closure.start",
+      "parent_type_id": "transportation.road.operation.closure",
+      "required_attributes": [
+        "closure_reason",
+        "planned"
+      ]
+    },
+    {
+      "event_type_id": "transportation.road.operation.closure.end",
+      "parent_type_id": "transportation.road.operation.closure",
+      "required_attributes": [
+        "closure_reason",
+        "planned"
+      ]
+    }
+  ],
+  "context_relation_types": [
+    {
+      "relation_type_id": "transportation.road.downstream_of",
+      "directed": true,
+      "meaning": "physical_or_operational_downstream_reachability_only",
+      "does_not_imply_event_parenthood": true
+    }
+  ],
+  "event_relation_types": [
+    {
+      "relation_type_id": "transportation.initiates_congestion",
+      "relation_class": "causal"
+    },
+    {
+      "relation_type_id": "transportation.propagates_downstream",
+      "relation_class": "causal"
+    },
+    {
+      "relation_type_id": "transportation.transitions_to_recovery",
+      "relation_class": "transition"
+    },
+    {
+      "relation_type_id": "transportation.weather_induces_congestion",
+      "relation_class": "causal"
+    },
+    {
+      "relation_type_id": "transportation.weather_contributes_to_collision",
+      "relation_class": "causal"
+    },
+    {
+      "relation_type_id": "transportation.weather_contributes_to_congestion",
+      "relation_class": "causal"
+    },
+    {
+      "relation_type_id": "transportation.weather_clears",
+      "relation_class": "transition"
+    },
+    {
+      "relation_type_id": "transportation.closure_reopens",
+      "relation_class": "transition"
+    }
+  ],
+  "mechanisms": [
+    {
+      "mechanism_id": "transportation.exogenous_incident_arrival",
+      "temporal_model_ref": "transportation.root_arrival.prior_v1"
+    },
+    {
+      "mechanism_id": "transportation.incident_to_congestion",
+      "temporal_model_ref": "transportation.incident_to_congestion.prior_v1"
+    },
+    {
+      "mechanism_id": "transportation.congestion_propagation",
+      "temporal_model_ref": "transportation.propagation_hazard.prior_v1"
+    },
+    {
+      "mechanism_id": "transportation.congestion_recovery",
+      "temporal_model_ref": "transportation.recovery_hazard.prior_v1"
+    },
+    {
+      "mechanism_id": "transportation.exogenous_weather_arrival",
+      "temporal_model_ref": "transportation.weather_arrival.prior_v1"
+    },
+    {
+      "mechanism_id": "transportation.weather_clearance",
+      "temporal_model_ref": "transportation.weather_duration.prior_v1"
+    },
+    {
+      "mechanism_id": "transportation.weather_to_congestion",
+      "temporal_model_ref": "transportation.weather_to_congestion.prior_v1"
+    },
+    {
+      "mechanism_id": "transportation.weather_to_collision",
+      "temporal_model_ref": "transportation.weather_to_collision.prior_v1"
+    },
+    {
+      "mechanism_id": "transportation.planned_closure_start",
+      "temporal_model_ref": "core.scheduled"
+    },
+    {
+      "mechanism_id": "transportation.planned_closure_end",
+      "temporal_model_ref": "transportation.closure_duration.prior_v1"
+    }
+  ]
+}

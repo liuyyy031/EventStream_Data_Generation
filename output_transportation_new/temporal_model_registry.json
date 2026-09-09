@@ -1,0 +1,174 @@
+{
+  "models": [
+    {
+      "model_id": "core.immediate",
+      "family": "deterministic_delay",
+      "covariate_mode": "deterministic_schedule",
+      "model_basis": "standard_mathematical_model_family",
+      "mathematical_form": "delta_t = configured_delay",
+      "parameter_status": "configuration_or_policy_defined",
+      "parameters": {
+        "default_delay_seconds": 0.0
+      }
+    },
+    {
+      "model_id": "core.scheduled",
+      "family": "scheduled_time",
+      "covariate_mode": "deterministic_schedule",
+      "model_basis": "standard_mathematical_model_family",
+      "mathematical_form": "event_time = configured_schedule_time",
+      "parameter_status": "configuration_or_policy_defined",
+      "parameters": {}
+    },
+    {
+      "model_id": "transportation.closure_duration.prior_v1",
+      "family": "conditional_lognormal",
+      "covariate_mode": "static_at_activation",
+      "model_basis": "standard_mathematical_model_family",
+      "mathematical_form": "log(delta_t) = beta_0 + beta^T x + sigma * epsilon",
+      "parameter_status": "transparent_synthetic_prior_pending_empirical_fit",
+      "parameters": {
+        "intercept": 7.495541943884256,
+        "sigma": 0.3,
+        "coefficients": {},
+        "minimum_seconds": 600.0,
+        "maximum_seconds": 7200.0
+      }
+    },
+    {
+      "model_id": "transportation.incident_to_congestion.prior_v1",
+      "family": "conditional_lognormal",
+      "covariate_mode": "static_at_activation",
+      "model_basis": "standard_mathematical_model_family",
+      "mathematical_form": "log(delta_t) = beta_0 + beta^T x + sigma * epsilon",
+      "parameter_status": "transparent_synthetic_prior_pending_empirical_fit",
+      "parameters": {
+        "intercept": 5.0106352940962555,
+        "sigma": 0.35,
+        "coefficients": {
+          "severity": -0.35,
+          "volume_capacity_ratio": -0.25,
+          "weather_severity": -0.2
+        },
+        "minimum_seconds": 20.0,
+        "maximum_seconds": 1800.0
+      }
+    },
+    {
+      "model_id": "transportation.observation_delay.prior_v1",
+      "family": "conditional_lognormal",
+      "covariate_mode": "static_at_activation",
+      "model_basis": "standard_mathematical_model_family",
+      "mathematical_form": "log(delta_t) = beta_0 + beta^T x + sigma * epsilon",
+      "parameter_status": "transparent_synthetic_prior_pending_empirical_fit",
+      "parameters": {
+        "intercept": 2.0794415416798357,
+        "sigma": 0.25,
+        "coefficients": {},
+        "minimum_seconds": 1.0,
+        "maximum_seconds": 60.0
+      }
+    },
+    {
+      "model_id": "transportation.propagation_hazard.prior_v1",
+      "family": "piecewise_exponential_hazard",
+      "covariate_mode": "time_varying_hazard",
+      "model_basis": "standard_mathematical_model_family",
+      "mathematical_form": "lambda(t|x) = lambda_0 * exp(beta^T x) within each state interval",
+      "parameter_status": "transparent_synthetic_prior_pending_empirical_fit",
+      "parameters": {
+        "baseline_rate_per_second": 0.0038461538461538464,
+        "coefficients": {
+          "severity": 0.8
+        }
+      }
+    },
+    {
+      "model_id": "transportation.recovery_hazard.prior_v1",
+      "family": "piecewise_exponential_hazard",
+      "covariate_mode": "time_varying_hazard",
+      "model_basis": "standard_mathematical_model_family",
+      "mathematical_form": "lambda(t|x) = lambda_0 * exp(beta^T x) within each state interval",
+      "parameter_status": "transparent_synthetic_prior_pending_empirical_fit",
+      "parameters": {
+        "baseline_rate_per_second": 0.0005555555555555556,
+        "coefficients": {
+          "severity": -0.9
+        }
+      }
+    },
+    {
+      "model_id": "transportation.root_arrival.prior_v1",
+      "family": "exponential_arrival",
+      "covariate_mode": "static_at_activation",
+      "model_basis": "standard_mathematical_model_family",
+      "mathematical_form": "delta_t ~ Exponential(rate)",
+      "parameter_status": "transparent_synthetic_prior_pending_empirical_fit",
+      "parameters": {
+        "default_rate_per_second": 0.0004166666666666667
+      }
+    },
+    {
+      "model_id": "transportation.weather_arrival.prior_v1",
+      "family": "exponential_arrival",
+      "covariate_mode": "static_at_activation",
+      "model_basis": "standard_mathematical_model_family",
+      "mathematical_form": "delta_t ~ Exponential(rate)",
+      "parameter_status": "transparent_synthetic_prior_pending_empirical_fit",
+      "parameters": {
+        "default_rate_per_second": 0.0005555555555555556
+      }
+    },
+    {
+      "model_id": "transportation.weather_duration.prior_v1",
+      "family": "conditional_lognormal",
+      "covariate_mode": "static_at_activation",
+      "model_basis": "standard_mathematical_model_family",
+      "mathematical_form": "log(delta_t) = beta_0 + beta^T x + sigma * epsilon",
+      "parameter_status": "transparent_synthetic_prior_pending_empirical_fit",
+      "parameters": {
+        "intercept": 7.783224016336037,
+        "sigma": 0.4,
+        "coefficients": {
+          "severity": 0.25
+        },
+        "minimum_seconds": 600.0,
+        "maximum_seconds": 10800.0
+      }
+    },
+    {
+      "model_id": "transportation.weather_to_collision.prior_v1",
+      "family": "conditional_lognormal",
+      "covariate_mode": "static_at_activation",
+      "model_basis": "standard_mathematical_model_family",
+      "mathematical_form": "log(delta_t) = beta_0 + beta^T x + sigma * epsilon",
+      "parameter_status": "transparent_synthetic_prior_pending_empirical_fit",
+      "parameters": {
+        "intercept": 6.396929655216146,
+        "sigma": 0.5,
+        "coefficients": {
+          "weather_severity": -0.45
+        },
+        "minimum_seconds": 45.0,
+        "maximum_seconds": 3600.0
+      }
+    },
+    {
+      "model_id": "transportation.weather_to_congestion.prior_v1",
+      "family": "conditional_lognormal",
+      "covariate_mode": "static_at_activation",
+      "model_basis": "standard_mathematical_model_family",
+      "mathematical_form": "log(delta_t) = beta_0 + beta^T x + sigma * epsilon",
+      "parameter_status": "transparent_synthetic_prior_pending_empirical_fit",
+      "parameters": {
+        "intercept": 6.040254711277414,
+        "sigma": 0.45,
+        "coefficients": {
+          "weather_severity": -0.5
+        },
+        "minimum_seconds": 30.0,
+        "maximum_seconds": 3600.0
+      }
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "domain": "business_process",
+  "implementation_status": "placeholder",
+  "subdomain": "generic_process",
+  "schema_version": "eventflow-v1",
+  "event_type_registry": "event_type_registry_placeholder.json",
+  "relation_rules": {}
+}

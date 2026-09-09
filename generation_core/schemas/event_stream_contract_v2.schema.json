@@ -1,0 +1,221 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://streasoner.local/schemas/event_stream_contract_v2.schema.json",
+  "title": "Domain-neutral event-stream record contract",
+  "$defs": {
+    "participant": {
+      "type": "object",
+      "required": ["entity_id", "role"],
+      "properties": {
+        "entity_id": {"type": "string", "minLength": 1},
+        "role": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "context": {
+      "type": "object",
+      "required": ["context_id", "domain", "entity_count", "context_relation_count"],
+      "properties": {
+        "context_id": {"type": "string", "minLength": 1},
+        "domain": {"type": "string", "minLength": 1},
+        "entity_count": {"type": "integer", "minimum": 0},
+        "context_relation_count": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "episode": {
+      "type": "object",
+      "required": [
+        "episode_id",
+        "domain",
+        "context_id",
+        "start_time",
+        "duration_seconds",
+        "termination_reason",
+        "attributes",
+        "counts",
+        "validation"
+      ],
+      "properties": {
+        "episode_id": {"type": "string", "minLength": 1},
+        "domain": {"type": "string", "minLength": 1},
+        "context_id": {"type": "string", "minLength": 1},
+        "start_time": {"type": "string", "minLength": 1},
+        "duration_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "termination_reason": {"enum": ["observation_window_ended", "event_limit_reached"]},
+        "attributes": {"type": "object"},
+        "counts": {"type": "object"},
+        "validation": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "temporal_extent": {
+      "type": "object",
+      "required": ["occurrence_start_offset_seconds", "precision"],
+      "properties": {
+        "occurrence_start_offset_seconds": {"type": "number", "minimum": 0},
+        "occurrence_end_offset_seconds": {"type": ["number", "null"], "minimum": 0},
+        "observed_at_offset_seconds": {"type": ["number", "null"], "minimum": 0},
+        "recorded_at_offset_seconds": {"type": ["number", "null"], "minimum": 0},
+        "precision": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "entity": {
+      "type": "object",
+      "required": ["entity_id", "domain", "entity_type_id", "attributes"],
+      "properties": {
+        "entity_id": {"type": "string", "minLength": 1},
+        "context_id": {"type": ["string", "null"]},
+        "domain": {"type": "string", "minLength": 1},
+        "entity_type_id": {"type": "string", "minLength": 1},
+        "attributes": {"type": "object"},
+        "provenance": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "context_relation": {
+      "type": "object",
+      "required": [
+        "relation_id",
+        "domain",
+        "relation_type_id",
+        "source_entity_id",
+        "target_entity_id",
+        "directed",
+        "attributes"
+      ],
+      "properties": {
+        "relation_id": {"type": "string", "minLength": 1},
+        "context_id": {"type": ["string", "null"]},
+        "domain": {"type": "string", "minLength": 1},
+        "relation_type_id": {"type": "string", "minLength": 1},
+        "source_entity_id": {"type": "string", "minLength": 1},
+        "target_entity_id": {"type": "string", "minLength": 1},
+        "directed": {"type": "boolean"},
+        "valid_from_offset_seconds": {"type": ["number", "null"]},
+        "valid_to_offset_seconds": {"type": ["number", "null"]},
+        "attributes": {"type": "object"},
+        "provenance": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "event": {
+      "type": "object",
+      "required": [
+        "event_id",
+        "episode_id",
+        "domain",
+        "event_type_id",
+        "temporal",
+        "participants",
+        "attributes",
+        "observation",
+        "provenance"
+      ],
+      "properties": {
+        "event_id": {"type": "string", "minLength": 1},
+        "episode_id": {"type": "string", "minLength": 1},
+        "domain": {"type": "string", "minLength": 1},
+        "event_type_id": {"type": "string", "minLength": 1},
+        "temporal": {"$ref": "#/$defs/temporal_extent"},
+        "participants": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/participant"},
+          "minItems": 1
+        },
+        "attributes": {"type": "object"},
+        "event_role": {"type": ["string", "null"]},
+        "observation": {"type": "object"},
+        "provenance": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "temporal_link": {
+      "type": "object",
+      "required": [
+        "lag_seconds",
+        "source_anchor",
+        "target_anchor",
+        "temporal_model_ref",
+        "censoring_status"
+      ],
+      "properties": {
+        "lag_seconds": {"type": "number"},
+        "source_anchor": {"type": "string"},
+        "target_anchor": {"type": "string"},
+        "temporal_model_ref": {"type": "string", "minLength": 1},
+        "censoring_status": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "event_relation": {
+      "type": "object",
+      "required": [
+        "relation_id",
+        "episode_id",
+        "source_event_id",
+        "target_event_id",
+        "relation_class",
+        "relation_type_id",
+        "rule_id",
+        "temporal_link",
+        "status",
+        "attributes",
+        "provenance"
+      ],
+      "properties": {
+        "relation_id": {"type": "string", "minLength": 1},
+        "episode_id": {"type": "string", "minLength": 1},
+        "source_event_id": {"type": "string", "minLength": 1},
+        "target_event_id": {"type": "string", "minLength": 1},
+        "relation_class": {
+          "enum": ["causal", "transition", "observation", "workflow", "communication", "derivation"]
+        },
+        "relation_type_id": {"type": "string", "minLength": 1},
+        "rule_id": {"type": "string", "minLength": 1},
+        "temporal_link": {"$ref": "#/$defs/temporal_link"},
+        "status": {"type": "string", "minLength": 1},
+        "mechanism_group_id": {"type": ["string", "null"]},
+        "attributes": {"type": "object"},
+        "provenance": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "candidate": {
+      "type": "object",
+      "required": [
+        "candidate_id",
+        "episode_id",
+        "mechanism_id",
+        "target_event_type_id",
+        "activation_time",
+        "temporal_model_ref",
+        "status"
+      ],
+      "properties": {
+        "candidate_id": {"type": "string", "minLength": 1},
+        "episode_id": {"type": "string", "minLength": 1},
+        "mechanism_id": {"type": "string", "minLength": 1},
+        "target_event_type_id": {"type": "string", "minLength": 1},
+        "parent_event_ids": {"type": "array", "items": {"type": "string"}},
+        "participants": {"type": "array", "items": {"$ref": "#/$defs/participant"}},
+        "activation_time": {"type": "number", "minimum": 0},
+        "temporal_model_ref": {"type": "string", "minLength": 1},
+        "temporal_inputs": {"type": "object"},
+        "combination": {"enum": ["single", "all_of", "any_of", "k_of_n", "ordered_sequence"]},
+        "status": {"enum": ["scheduled", "fired", "cancelled", "superseded", "right_censored"]}
+      },
+      "additionalProperties": true
+    }
+  },
+  "oneOf": [
+    {"$ref": "#/$defs/context"},
+    {"$ref": "#/$defs/episode"},
+    {"$ref": "#/$defs/entity"},
+    {"$ref": "#/$defs/context_relation"},
+    {"$ref": "#/$defs/event"},
+    {"$ref": "#/$defs/event_relation"},
+    {"$ref": "#/$defs/candidate"}
+  ]
+}

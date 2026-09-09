@@ -1,0 +1,90 @@
+{
+  "schema_version": "eventflow-v1",
+  "generator_version": "eventflow-v1.4.0",
+  "domain": "transportation",
+  "seed": 20260716,
+  "created_at": "2026-08-15T14:53:40.644312+08:00",
+  "configuration": {
+    "schema_version": "eventflow-v1",
+    "generator_version": "eventflow-v1.4.0",
+    "domain": "transportation",
+    "seed": 20260716,
+    "episode_count": 100,
+    "network": {
+      "network_id": "transport_network_001",
+      "network_count": 4,
+      "structure_families": [
+        "corridor",
+        "grid",
+        "hub",
+        "random_connected"
+      ],
+      "node_count": 1000,
+      "extra_edge_ratio": 0.15,
+      "max_topology_out_degree": 6,
+      "external_network_file": null
+    },
+    "simulation": {
+      "duration_seconds": 7200.0,
+      "start_time": "2026-07-16T08:00:00+08:00",
+      "scenario_families": [
+        "accident_propagation",
+        "vehicle_breakdown",
+        "road_obstruction",
+        "signal_failure",
+        "weather_disruption",
+        "road_closure",
+        "mixed_scenario"
+      ],
+      "max_events_per_episode": 32,
+      "max_propagation_depth": 5,
+      "expected_children_per_event": 1.15,
+      "max_children_per_event": 3,
+      "recovery_probability": 0.75,
+      "full_recovery_probability": 0.35,
+      "background_root_rate_per_hour": 0.15,
+      "reject_truncated_episodes": true
+    },
+    "text": {
+      "language": "en",
+      "paraphrase_rate": 0.25
+    },
+    "calibration": {
+      "profile_file": null,
+      "require_formula_provenance": true
+    },
+    "validation": {
+      "judge_mode": "llm",
+      "max_episode_attempts": 8,
+      "distribution_hard_fail": false,
+      "llm_judge_max_tokens": 1200,
+      "llm_judge_protocol_max_attempts": 3,
+      "llm_judge_reason_limit": 4,
+      "llm_judge_response_preview_chars": 2000
+    },
+    "output": {
+      "directory": "data_generation/output_eventflow_v1"
+    }
+  },
+  "contract_notes": {
+    "relation_source_of_truth": "relations.jsonl",
+    "topology_is_not_parenthood": true,
+    "time_representation": "exact_timestamp_and_float_offset",
+    "matrix_representation": "not_used",
+    "node_count_semantics": "road_segments_per_generated_network",
+    "judge_protocol_errors_regenerate_episode": false,
+    "calibration_profile_id": "transportation-reference-prior-v1",
+    "calibration_status": "reference_formula_with_synthetic_inputs_pending_empirical_fit",
+    "statistical_realism": "not_claimed_until_empirical_fit_and_holdout_validation",
+    "event_type_policy": "namespaced_ids_resolved_by_versioned_registry",
+    "participant_policy": "qualified_event_to_entity_links"
+  },
+  "event_type_registry": {
+    "registry_id": "streasoner.transportation.road",
+    "registry_version": "2.0.0",
+    "domain": "transportation",
+    "subdomain": "road",
+    "file": "event_type_registry.json",
+    "sha256": "1732feb07e162b2bf874a7d9931fd3ed25a13c6471a77a6f5a119f5e010d2e4b"
+  }
+}

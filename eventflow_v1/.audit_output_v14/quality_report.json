@@ -1,0 +1,222 @@
+{
+  "passed": true,
+  "accepted_episode_count": 100,
+  "network_count": 4,
+  "rejected_attempt_count": 5,
+  "generation_retry_count": 5,
+  "semantic_rejection_count": 0,
+  "judge_protocol_retry_count": 0,
+  "judge_protocol_failure_count": 0,
+  "rejection_reason_counts": {
+    "Episode is truncated: event_limit_reached; pending frontier=0, skipped recoveries=4": 1,
+    "Episode is truncated: event_limit_reached; pending frontier=0, skipped recoveries=5": 1,
+    "Episode is truncated: event_limit_reached; pending frontier=0, skipped recoveries=12": 1,
+    "Episode is truncated: event_limit_reached; pending frontier=0, skipped recoveries=17": 1,
+    "Episode is truncated: event_limit_reached; pending frontier=0, skipped recoveries=7": 1
+  },
+  "judge_protocol_error_counts": {},
+  "deterministic_validation": "passed_for_all_written_episodes",
+  "semantic_judge_mode": "heuristic",
+  "distribution": {
+    "episode_count": 100,
+    "scenario_counts": {
+      "accident_propagation": 17,
+      "vehicle_breakdown": 13,
+      "road_closure": 12,
+      "signal_failure": 16,
+      "road_obstruction": 16,
+      "mixed_scenario": 13,
+      "weather_disruption": 13
+    },
+    "event_type_counts": {
+      "transportation.road.incident.vehicle_collision": 43,
+      "transportation.road.traffic_state.congestion_onset": 612,
+      "transportation.road.traffic_state.congestion_easing": 294,
+      "transportation.road.traffic_state.normal_flow_restored": 153,
+      "transportation.road.incident.vehicle_breakdown": 23,
+      "transportation.road.management.road_closure_started": 4,
+      "transportation.road.fault.traffic_signal_failure": 16,
+      "transportation.road.management.roadworks_started": 8,
+      "transportation.road.obstruction.road_debris": 16,
+      "transportation.road.environment.heavy_rain_onset": 21,
+      "transportation.road.environment.flooding_onset": 5
+    },
+    "event_category_counts": {
+      "traffic_incident": 66,
+      "traffic_state_change": 1059,
+      "operator_action": 12,
+      "equipment_fault": 16,
+      "obstruction": 16,
+      "environmental_condition": 26
+    },
+    "event_metric_tag_counts": {
+      "congestion": 612,
+      "recovery": 447,
+      "full_recovery": 153
+    },
+    "relation_type_counts": {
+      "initiates_congestion": 74,
+      "propagates_downstream": 512,
+      "transitions_to_recovery": 447,
+      "jointly_causes_congestion": 26,
+      "weather_induces_congestion": 13
+    },
+    "events_per_episode": {
+      "count": 100,
+      "min": 3.0,
+      "max": 32.0,
+      "mean": 11.95,
+      "median": 11.0
+    },
+    "relations_per_episode": {
+      "count": 100,
+      "min": 1.0,
+      "max": 30.0,
+      "mean": 10.72,
+      "median": 10.0
+    },
+    "inter_event_gap_seconds": {
+      "count": 1095,
+      "min": 0.106,
+      "max": 5983.71,
+      "mean": 350.363795,
+      "median": 149.817
+    },
+    "relation_lag_seconds_by_type": {
+      "initiates_congestion": {
+        "count": 74,
+        "min": 58.409,
+        "max": 511.767,
+        "mean": 280.564689,
+        "median": 272.46
+      },
+      "jointly_causes_congestion": {
+        "count": 26,
+        "min": 107.263,
+        "max": 819.692,
+        "mean": 429.159423,
+        "median": 416.1585
+      },
+      "propagates_downstream": {
+        "count": 512,
+        "min": 28.74,
+        "max": 4947.338,
+        "mean": 220.314861,
+        "median": 121.407
+      },
+      "transitions_to_recovery": {
+        "count": 447,
+        "min": 740.049,
+        "max": 5471.739,
+        "mean": 2249.936374,
+        "median": 2074.789
+      },
+      "weather_induces_congestion": {
+        "count": 13,
+        "min": 64.632,
+        "max": 537.024,
+        "mean": 294.411308,
+        "median": 302.957
+      }
+    },
+    "max_causal_children_observed": 3,
+    "max_propagation_children_observed": 3,
+    "truncated_episode_count": 0,
+    "unique_episode_entity_count": 615,
+    "network_entity_utilization_fraction": 0.153596,
+    "multi_parent_target_fraction": 0.012276,
+    "calibration_status": "reference_formula_with_synthetic_inputs_pending_empirical_fit",
+    "calibration_evidence": {
+      "profile_counts": {
+        "transportation-reference-prior-v1": 100
+      },
+      "status_counts": {
+        "reference_formula_with_synthetic_inputs_pending_empirical_fit": 100
+      },
+      "calibrated_propagation_lag_count": 512,
+      "calibrated_recovery_lag_count": 447,
+      "propagation_lag_to_free_flow_ratio": {
+        "count": 512,
+        "min": 0.994885,
+        "max": 3.5925,
+        "mean": 1.494586,
+        "median": 1.436333
+      }
+    },
+    "warnings": [],
+    "recovery_to_congestion_ratio": 0.730392
+  },
+  "topology": [
+    {
+      "network_id": "transport_network_001_000",
+      "structure_family": "corridor",
+      "road_segment_count": 1000,
+      "edge_count": 1149,
+      "max_out_degree": 3,
+      "mean_out_degree": 1.149
+    },
+    {
+      "network_id": "transport_network_001_001",
+      "structure_family": "grid",
+      "road_segment_count": 1000,
+      "edge_count": 2775,
+      "max_out_degree": 6,
+      "mean_out_degree": 2.775
+    },
+    {
+      "network_id": "transport_network_001_002",
+      "structure_family": "hub",
+      "road_segment_count": 1000,
+      "edge_count": 1815,
+      "max_out_degree": 6,
+      "mean_out_degree": 1.815
+    },
+    {
+      "network_id": "transport_network_001_003",
+      "structure_family": "random_connected",
+      "road_segment_count": 1000,
+      "edge_count": 1149,
+      "max_out_degree": 3,
+      "mean_out_degree": 1.149
+    }
+  ],
+  "calibration": {
+    "profile_id": "transportation-reference-prior-v1",
+    "profile_version": "1.0.0",
+    "status": "reference_formula_with_synthetic_inputs_pending_empirical_fit",
+    "fit_requirements": {
+      "minimum_fields": [
+        "network_edge_id",
+        "timestamp",
+        "link_length_km",
+        "free_flow_speed_kph",
+        "traffic_volume_vehicles_per_hour",
+        "capacity_vehicles_per_hour",
+        "incident_type",
+        "incident_severity",
+        "roadway_clearance_time_seconds",
+        "return_to_normal_flow_time_seconds"
+      ],
+      "recommended_split": "fit coefficients on training dates and report error on held-out dates",
+      "status": "not_started"
+    },
+    "sources": {
+      "propagation_lag": {
+        "title": "FHWA Approaches to Forecasting PM3 Measures for Target Setting, Chapter 4",
+        "url": "https://ops.fhwa.dot.gov/publications/fhwahop21014/chap4.htm",
+        "supports": "BPR link travel-time formula and traditional alpha=0.15, beta=4 parameters"
+      },
+      "recovery_lag": {
+        "title": "FHWA Traffic Incident Management Performance Measures",
+        "url": "https://ops.fhwa.dot.gov/tim/preparedness/tim/performance_measures.htm",
+        "supports": "Definitions and measurement boundaries for roadway clearance, incident clearance and return to normal flow"
+      }
+    }
+  },
+  "limitations": [
+    "Propagation uses an FHWA-documented reference formula, but local coefficients and generated demand inputs are not empirically fitted.",
+    "Recovery coefficients are transparent synthetic priors pending fit to clearance and return-to-normal-flow observations.",
+    "The semantic judge cannot establish statistical realism.",
+    "All events are currently emitted as directly observed with zero observation delay."
+  ]
+}

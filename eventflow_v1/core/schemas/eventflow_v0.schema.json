@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://streasoner.local/schemas/eventflow_v0.schema.json",
+  "title": "EventFlow v0 common record contract",
+  "description": "Provisional common envelope. Domain semantics remain in each DomainSpec.",
+  "$defs": {
+    "event": {
+      "type": "object",
+      "required": [
+        "event_id",
+        "episode_id",
+        "domain",
+        "event_type",
+        "event_time",
+        "time_offset_seconds",
+        "participant_ids",
+        "attributes",
+        "provenance"
+      ],
+      "properties": {
+        "event_id": {"type": "string", "minLength": 1},
+        "episode_id": {"type": "string", "minLength": 1},
+        "domain": {"type": "string", "minLength": 1},
+        "event_type": {"type": "string", "minLength": 1},
+        "event_time": {"type": "string", "format": "date-time"},
+        "time_offset_seconds": {"type": "number", "minimum": 0},
+        "participant_ids": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "attributes": {"type": "object"},
+        "event_role": {"type": ["string", "null"]},
+        "observation": {"type": "object"},
+        "provenance": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "relation": {
+      "type": "object",
+      "required": [
+        "relation_id",
+        "episode_id",
+        "source_event_id",
+        "target_event_id",
+        "relation_class",
+        "relation_type",
+        "status",
+        "rule_id",
+        "provenance"
+      ],
+      "properties": {
+        "relation_id": {"type": "string"},
+        "episode_id": {"type": "string"},
+        "source_event_id": {"type": "string"},
+        "target_event_id": {"type": "string"},
+        "relation_class": {"type": "string"},
+        "relation_type": {"type": "string"},
+        "status": {"enum": ["ground_truth", "observed_link"]},
+        "rule_id": {"type": "string"},
+        "mechanism_group_id": {"type": ["string", "null"]},
+        "attributes": {"type": "object"},
+        "provenance": {"type": "object"}
+      },
+      "additionalProperties": false
+    }
+  }
+}
+

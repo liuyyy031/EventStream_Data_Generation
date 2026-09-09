@@ -1,0 +1,9 @@
+{
+  "registry_id": "streasoner.business_process.placeholder",
+  "registry_version": "0.0.0",
+  "domain": "business_process",
+  "subdomain": "generic_process",
+  "implementation_status": "placeholder_not_loadable",
+  "categories": {},
+  "event_types": {}
+}

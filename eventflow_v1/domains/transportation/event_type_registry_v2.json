@@ -1,0 +1,232 @@
+{
+  "registry_id": "streasoner.transportation.road",
+  "registry_version": "2.0.0",
+  "domain": "transportation",
+  "subdomain": "road",
+  "scope": "road-traffic event-flow generation; not rail, aviation, maritime, or full public transit",
+  "categories": {
+    "environmental_condition": "Environmental conditions that can affect road traffic.",
+    "traffic_incident": "Unplanned incidents involving road users or vehicles.",
+    "obstruction": "Physical obstructions on a road segment.",
+    "equipment_fault": "Failures of traffic-control equipment or systems.",
+    "operator_action": "Actions initiated by or on behalf of a road operator.",
+    "traffic_state_change": "Point events that mark a change in traffic-flow state."
+  },
+  "design_sources": [
+    {
+      "title": "DATEX II Situation and SituationPublication",
+      "url": "https://docs.datex2.eu/v3.1/level2user/situationPublication.html",
+      "supports": "Separation of traffic elements, operator actions, environmental conditions, faults, obstructions and abnormal traffic."
+    },
+    {
+      "title": "GTFS Realtime Service Alerts",
+      "url": "https://gtfs.org/documentation/realtime/feed-entities/service-alerts/",
+      "supports": "Separation of disruption causes from their effects on a transport service."
+    }
+  ],
+  "event_types": {
+    "transportation.road.environment.heavy_rain_onset": {
+      "display_name": "heavy rain onset",
+      "category": "environmental_condition",
+      "definition": "The point at which heavy rainfall begins to affect the represented region.",
+      "participant_roles": {
+        "affected_region": {"entity_types": ["region"], "min_count": 1, "max_count": 1}
+      },
+      "attributes": {
+        "required": {
+          "intensity_mm_per_hour": {"type": "number", "minimum": 0.0},
+          "coverage": {"type": "string", "enum": ["regional"]},
+          "capacity_reduction_fraction": {"type": "number", "minimum": 0.0, "maximum": 1.0}
+        },
+        "optional": {},
+        "additional_properties": false
+      },
+      "external_mappings": [{"standard": "DATEX_II", "concept": "Conditions.EnvironmentConditions.Precipitation"}]
+    },
+    "transportation.road.obstruction.flooding_onset": {
+      "display_name": "road flooding onset",
+      "category": "obstruction",
+      "definition": "The point at which flooding starts to obstruct a represented road segment.",
+      "participant_roles": {
+        "affected_road": {"entity_types": ["road_segment"], "min_count": 1, "max_count": 1}
+      },
+      "attributes": {
+        "required": {
+          "severity": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+          "water_depth_cm": {"type": "number", "minimum": 0.0},
+          "capacity_reduction_fraction": {"type": "number", "minimum": 0.0, "maximum": 1.0}
+        },
+        "optional": {},
+        "additional_properties": false
+      },
+      "external_mappings": [{"standard": "DATEX_II", "concept": "Obstruction.EnvironmentalObstruction.Flooding"}]
+    },
+    "transportation.road.incident.vehicle_collision": {
+      "display_name": "vehicle collision",
+      "category": "traffic_incident",
+      "definition": "A collision involving one or more vehicles or road users.",
+      "participant_roles": {
+        "affected_road": {"entity_types": ["road_segment"], "min_count": 1, "max_count": 1}
+      },
+      "attributes": {
+        "required": {
+          "severity": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+          "lanes_blocked": {"type": "integer", "minimum": 1},
+          "capacity_reduction_fraction": {"type": "number", "minimum": 0.0, "maximum": 1.0}
+        },
+        "optional": {
+          "vehicles_involved": {"type": "integer", "minimum": 1}
+        },
+        "additional_properties": false
+      },
+      "external_mappings": [{"standard": "DATEX_II", "concept": "TrafficElement.Accident"}]
+    },
+    "transportation.road.incident.vehicle_breakdown": {
+      "display_name": "vehicle breakdown",
+      "category": "traffic_incident",
+      "definition": "A disabled vehicle that reduces usable road capacity.",
+      "participant_roles": {
+        "affected_road": {"entity_types": ["road_segment"], "min_count": 1, "max_count": 1}
+      },
+      "attributes": {
+        "required": {
+          "severity": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+          "lanes_blocked": {"type": "integer", "minimum": 0},
+          "capacity_reduction_fraction": {"type": "number", "minimum": 0.0, "maximum": 1.0}
+        },
+        "optional": {"shoulder_available": {"type": "boolean"}},
+        "additional_properties": false
+      },
+      "external_mappings": [{"standard": "DATEX_II", "concept": "Obstruction.VehicleObstruction"}]
+    },
+    "transportation.road.obstruction.road_debris": {
+      "display_name": "road debris obstruction",
+      "category": "obstruction",
+      "definition": "Shed load or debris obstructing part of a road segment.",
+      "participant_roles": {
+        "affected_road": {"entity_types": ["road_segment"], "min_count": 1, "max_count": 1}
+      },
+      "attributes": {
+        "required": {
+          "severity": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+          "obstruction_fraction": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+          "capacity_reduction_fraction": {"type": "number", "minimum": 0.0, "maximum": 1.0}
+        },
+        "optional": {},
+        "additional_properties": false
+      },
+      "external_mappings": [{"standard": "DATEX_II", "concept": "Obstruction.GeneralObstruction"}]
+    },
+    "transportation.road.fault.traffic_signal_failure": {
+      "display_name": "traffic signal failure",
+      "category": "equipment_fault",
+      "definition": "A traffic signal equipment or control failure affecting road capacity.",
+      "participant_roles": {
+        "affected_road": {"entity_types": ["road_segment"], "min_count": 1, "max_count": 1}
+      },
+      "attributes": {
+        "required": {
+          "severity": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+          "affected_movements": {"type": "integer", "minimum": 1},
+          "capacity_reduction_fraction": {"type": "number", "minimum": 0.0, "maximum": 1.0}
+        },
+        "optional": {},
+        "additional_properties": false
+      },
+      "external_mappings": [{"standard": "DATEX_II", "concept": "TrafficElement.EquipmentOrSystemFault"}]
+    },
+    "transportation.road.management.road_closure_started": {
+      "display_name": "road closure started",
+      "category": "operator_action",
+      "definition": "A road operator action that starts a full or partial road closure.",
+      "participant_roles": {
+        "affected_road": {"entity_types": ["road_segment"], "min_count": 1, "max_count": 1}
+      },
+      "attributes": {
+        "required": {
+          "closure_fraction": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+          "planned": {"type": "boolean"},
+          "capacity_reduction_fraction": {"type": "number", "minimum": 0.0, "maximum": 1.0}
+        },
+        "optional": {},
+        "additional_properties": false
+      },
+      "external_mappings": [{"standard": "DATEX_II", "concept": "OperatorAction.NetworkManagement.RoadOrLaneManagement"}]
+    },
+    "transportation.road.management.roadworks_started": {
+      "display_name": "roadworks started",
+      "category": "operator_action",
+      "definition": "Roadworks begin and reduce usable capacity on a road segment.",
+      "participant_roles": {
+        "affected_road": {"entity_types": ["road_segment"], "min_count": 1, "max_count": 1}
+      },
+      "attributes": {
+        "required": {
+          "closure_fraction": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+          "planned": {"type": "boolean", "enum": [true]},
+          "capacity_reduction_fraction": {"type": "number", "minimum": 0.0, "maximum": 1.0}
+        },
+        "optional": {},
+        "additional_properties": false
+      },
+      "external_mappings": [{"standard": "DATEX_II", "concept": "OperatorAction.Roadworks"}]
+    },
+    "transportation.road.traffic_state.congestion_onset": {
+      "display_name": "traffic congestion onset",
+      "category": "traffic_state_change",
+      "definition": "A point event marking the onset of congestion on a road segment.",
+      "participant_roles": {
+        "affected_road": {"entity_types": ["road_segment"], "min_count": 1, "max_count": 1}
+      },
+      "attributes": {
+        "required": {
+          "severity": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+          "propagation_depth": {"type": "integer", "minimum": 0}
+        },
+        "optional": {
+          "trigger_capacity_reduction_fraction": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+          "baseline_volume_capacity_ratio": {"type": "number", "minimum": 0.0}
+        },
+        "additional_properties": false
+      },
+      "metric_tags": ["congestion"],
+      "external_mappings": [{"standard": "DATEX_II", "concept": "TrafficElement.AbnormalTraffic"}]
+    },
+    "transportation.road.traffic_state.congestion_easing": {
+      "display_name": "traffic congestion easing",
+      "category": "traffic_state_change",
+      "definition": "A point event marking a partial reduction in congestion severity.",
+      "participant_roles": {
+        "affected_road": {"entity_types": ["road_segment"], "min_count": 1, "max_count": 1}
+      },
+      "attributes": {
+        "required": {
+          "recovered_from_severity": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+          "recovery_fraction": {"type": "number", "minimum": 0.0, "maximum": 0.999999}
+        },
+        "optional": {},
+        "additional_properties": false
+      },
+      "metric_tags": ["recovery"],
+      "external_mappings": [{"standard": "DATEX_II", "concept": "TrafficStatus.trafficEasing"}]
+    },
+    "transportation.road.traffic_state.normal_flow_restored": {
+      "display_name": "normal traffic flow restored",
+      "category": "traffic_state_change",
+      "definition": "A point event marking restoration of normal traffic flow on a road segment.",
+      "participant_roles": {
+        "affected_road": {"entity_types": ["road_segment"], "min_count": 1, "max_count": 1}
+      },
+      "attributes": {
+        "required": {
+          "recovered_from_severity": {"type": "number", "minimum": 0.0, "maximum": 1.0},
+          "recovery_fraction": {"type": "number", "enum": [1.0]}
+        },
+        "optional": {},
+        "additional_properties": false
+      },
+      "metric_tags": ["recovery", "full_recovery"],
+      "external_mappings": [{"standard": "DATEX_II", "concept": "TrafficStatus.freeFlow"}]
+    }
+  }
+}

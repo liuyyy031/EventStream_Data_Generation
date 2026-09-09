@@ -1,0 +1,29 @@
+{
+  "domain": "distributed_systems",
+  "implementation_status": "structure_only",
+  "entity_type_ids": [
+    "distributed_systems.service",
+    "distributed_systems.host",
+    "distributed_systems.container",
+    "distributed_systems.endpoint"
+  ],
+  "context_relation_type_ids": [
+    "distributed_systems.service_calls_service",
+    "distributed_systems.service_deployed_on_host",
+    "distributed_systems.endpoint_exposed_by_service"
+  ],
+  "mechanism_families": [
+    "communication",
+    "timeout",
+    "retry",
+    "state_transition",
+    "observation"
+  ],
+  "required_temporal_model_families": [
+    "deterministic_delay",
+    "exponential_backoff",
+    "conditional_lognormal",
+    "piecewise_exponential_hazard"
+  ],
+  "implementation_note": "Trace-derived parentage and configured timeout policies are required before this package emits episodes."
+}

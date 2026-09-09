@@ -1,0 +1,9 @@
+{
+  "registry_id": "streasoner.opentelemetry.placeholder",
+  "registry_version": "0.0.0",
+  "domain": "opentelemetry",
+  "subdomain": "distributed_system",
+  "implementation_status": "placeholder_not_loadable",
+  "categories": {},
+  "event_types": {}
+}

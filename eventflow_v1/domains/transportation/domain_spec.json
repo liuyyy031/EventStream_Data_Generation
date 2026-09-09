@@ -1,0 +1,64 @@
+{
+  "domain": "transportation",
+  "subdomain": "road",
+  "schema_version": "eventflow-v1",
+  "event_type_registry": "event_type_registry_v2.json",
+  "relation_rules": {
+    "INCIDENT_TO_CONGESTION": {
+      "source_type_ids": [
+        "transportation.road.incident.vehicle_collision",
+        "transportation.road.incident.vehicle_breakdown"
+      ],
+      "target_type_ids": ["transportation.road.traffic_state.congestion_onset"],
+      "relation_types": ["initiates_congestion"]
+    },
+    "OBSTRUCTION_TO_CONGESTION": {
+      "source_type_ids": ["transportation.road.obstruction.road_debris"],
+      "target_type_ids": ["transportation.road.traffic_state.congestion_onset"],
+      "relation_types": ["initiates_congestion"]
+    },
+    "EQUIPMENT_FAULT_TO_CONGESTION": {
+      "source_type_ids": ["transportation.road.fault.traffic_signal_failure"],
+      "target_type_ids": ["transportation.road.traffic_state.congestion_onset"],
+      "relation_types": ["initiates_congestion"]
+    },
+    "MANAGEMENT_ACTION_TO_CONGESTION": {
+      "source_type_ids": [
+        "transportation.road.management.road_closure_started",
+        "transportation.road.management.roadworks_started"
+      ],
+      "target_type_ids": ["transportation.road.traffic_state.congestion_onset"],
+      "relation_types": ["initiates_congestion"]
+    },
+    "ENVIRONMENT_TO_CONGESTION": {
+      "source_type_ids": [
+        "transportation.road.environment.heavy_rain_onset",
+        "transportation.road.obstruction.flooding_onset"
+      ],
+      "target_type_ids": ["transportation.road.traffic_state.congestion_onset"],
+      "relation_types": ["weather_induces_congestion"]
+    },
+    "COLLISION_AND_RAIN_TO_SEVERE_CONGESTION": {
+      "source_type_ids": [
+        "transportation.road.incident.vehicle_collision",
+        "transportation.road.environment.heavy_rain_onset"
+      ],
+      "target_type_ids": ["transportation.road.traffic_state.congestion_onset"],
+      "relation_types": ["jointly_causes_congestion"]
+    },
+    "CONGESTION_PROPAGATES_DOWNSTREAM": {
+      "source_type_ids": ["transportation.road.traffic_state.congestion_onset"],
+      "target_type_ids": ["transportation.road.traffic_state.congestion_onset"],
+      "relation_types": ["propagates_downstream"],
+      "requires_network_edge": true
+    },
+    "CONGESTION_TO_RECOVERY": {
+      "source_type_ids": ["transportation.road.traffic_state.congestion_onset"],
+      "target_type_ids": [
+        "transportation.road.traffic_state.congestion_easing",
+        "transportation.road.traffic_state.normal_flow_restored"
+      ],
+      "relation_types": ["transitions_to_recovery"]
+    }
+  }
+}

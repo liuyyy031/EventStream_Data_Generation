@@ -1,0 +1,8 @@
+{
+  "domain": "opentelemetry",
+  "implementation_status": "placeholder",
+  "subdomain": "distributed_system",
+  "schema_version": "eventflow-v1",
+  "event_type_registry": "event_type_registry_placeholder.json",
+  "relation_rules": {}
+}

@@ -1,0 +1,7 @@
+record_type,split,free_flow_travel_seconds,traffic_volume_vehicles_per_hour,capacity_vehicles_per_hour,observed_propagation_lag_seconds,rain_active,congestion_severity,scenario_family,observed_return_to_normal_seconds
+propagation,train,60,900,1200,95,false,0.60,,
+propagation,train,60,1200,1200,135,false,0.75,,
+propagation,test,60,1500,1200,220,true,0.80,,
+recovery,train,,,,,,0.50,accident_propagation,2400
+recovery,train,,,,,,0.80,accident_propagation,3000
+recovery,test,,,,,,0.65,accident_propagation,2700
