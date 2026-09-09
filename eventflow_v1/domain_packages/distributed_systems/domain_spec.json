@@ -1,0 +1,72 @@
+{
+  "domain": "distributed_systems",
+  "implementation_status": "structure_only",
+  "entity_type_ids": [
+    "distributed_systems.service",
+    "distributed_systems.host",
+    "distributed_systems.container",
+    "distributed_systems.endpoint"
+  ],
+  "context_relation_type_ids": [
+    "distributed_systems.service_calls_service",
+    "distributed_systems.service_deployed_on_host",
+    "distributed_systems.endpoint_exposed_by_service"
+  ],
+  "mechanism_families": [
+    "communication",
+    "timeout",
+    "retry",
+    "state_transition",
+    "observation"
+  ],
+  "required_temporal_model_families": [
+    "deterministic_delay",
+    "exponential_backoff",
+    "conditional_lognormal",
+    "piecewise_exponential_hazard"
+  ],
+  "topology_contract": {
+    "representation": "sparse_typed_relation_layers",
+    "global_connectivity": "not_required",
+    "n_ary_relation_policy": "reify_as_typed_entity",
+    "spatial_coordinates_required": false,
+    "relation_layers": [
+      {
+        "relation_type_id": "distributed_systems.service_calls_service",
+        "family": "constrained_degree_weighted_block",
+        "source_type_ids": ["distributed_systems.service"],
+        "target_type_ids": ["distributed_systems.service"],
+        "directed": true,
+        "expected_out_degree": 2.0,
+        "max_out_degree": 12,
+        "allow_cycles": true,
+        "ensure_weak_connectivity": false,
+        "temporal_validity_allowed": true
+      },
+      {
+        "relation_type_id": "distributed_systems.service_deployed_on_host",
+        "family": "typed_bipartite",
+        "source_type_ids": ["distributed_systems.service"],
+        "target_type_ids": ["distributed_systems.host"],
+        "directed": true,
+        "expected_out_degree": 1.0,
+        "max_out_degree": 2,
+        "ensure_weak_connectivity": false,
+        "temporal_validity_allowed": true
+      },
+      {
+        "relation_type_id": "distributed_systems.endpoint_exposed_by_service",
+        "family": "typed_bipartite",
+        "source_type_ids": ["distributed_systems.endpoint"],
+        "target_type_ids": ["distributed_systems.service"],
+        "directed": true,
+        "expected_out_degree": 1.0,
+        "max_out_degree": 2,
+        "ensure_weak_connectivity": false,
+        "temporal_validity_allowed": true
+      }
+    ],
+    "parameter_status": "structure_only_pending_reference_fit"
+  },
+  "implementation_note": "Trace-derived parentage and configured timeout policies are required before this package emits episodes."
+}

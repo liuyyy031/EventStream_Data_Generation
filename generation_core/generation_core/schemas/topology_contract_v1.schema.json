@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://streasoner.local/schemas/topology_contract_v1.schema.json",
+  "title": "Sparse typed context-topology contract",
+  "type": "object",
+  "required": [
+    "representation",
+    "global_connectivity",
+    "n_ary_relation_policy",
+    "spatial_coordinates_required",
+    "relation_layers",
+    "parameter_status"
+  ],
+  "properties": {
+    "representation": {"const": "sparse_typed_relation_layers"},
+    "global_connectivity": {
+      "enum": ["not_required", "weakly_connected", "strongly_connected", "per_layer"]
+    },
+    "n_ary_relation_policy": {"const": "reify_as_typed_entity"},
+    "spatial_coordinates_required": {"type": "boolean"},
+    "relation_layers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "relation_type_id",
+          "family",
+          "source_type_ids",
+          "target_type_ids",
+          "directed",
+          "ensure_weak_connectivity"
+        ],
+        "properties": {
+          "relation_type_id": {"type": "string", "minLength": 1},
+          "family": {
+            "enum": ["constrained_degree_weighted_block", "typed_bipartite", "directed_acyclic"]
+          },
+          "source_type_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "target_type_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "minLength": 1}
+          },
+          "directed": {"type": "boolean"},
+          "allow_cycles": {"type": "boolean"},
+          "ensure_weak_connectivity": {"type": "boolean"},
+          "temporal_validity_allowed": {"type": "boolean"},
+          "attribute_builder_id": {"type": "string", "minLength": 1},
+          "expected_out_degree": {"type": "number", "minimum": 0},
+          "max_out_degree": {"type": "integer", "minimum": 1},
+          "max_in_degree": {"type": ["integer", "null"], "minimum": 1},
+          "community_count": {"type": "integer", "minimum": 1},
+          "within_community_bias": {"type": "number", "minimum": 1},
+          "degree_sigma": {"type": "number", "minimum": 0},
+          "hub_fraction": {"type": "number", "minimum": 0, "maximum": 1},
+          "hub_multiplier": {"type": "number", "minimum": 1},
+          "allow_self_loops": {"type": "boolean"},
+          "temporal_edge_fraction": {"type": "number", "minimum": 0, "maximum": 1}
+        },
+        "additionalProperties": true
+      }
+    },
+    "parameter_status": {"type": "string", "minLength": 1}
+  },
+  "additionalProperties": true
+}

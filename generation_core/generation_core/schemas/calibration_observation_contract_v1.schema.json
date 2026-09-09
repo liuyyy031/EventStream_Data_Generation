@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://streasoner.local/schemas/calibration_observation_contract_v1.schema.json",
+  "title": "Mechanism calibration exposure observation",
+  "type": "object",
+  "required": [
+    "observation_id", "mechanism_id", "split", "exposure_seconds",
+    "event_count", "covariates", "censoring_status", "source_record_ids"
+  ],
+  "properties": {
+    "observation_id": {"type": "string", "minLength": 1},
+    "mechanism_id": {"type": "string", "minLength": 1},
+    "split": {"enum": ["train", "validation", "holdout"]},
+    "exposure_seconds": {"type": "number", "exclusiveMinimum": 0},
+    "event_count": {"type": "integer", "minimum": 0},
+    "covariates": {
+      "type": "object",
+      "additionalProperties": {"type": "number"}
+    },
+    "context_id": {"type": ["string", "null"]},
+    "window_id": {"type": ["string", "null"]},
+    "censoring_status": {"type": "string", "minLength": 1},
+    "source_record_ids": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    }
+  },
+  "additionalProperties": false
+}

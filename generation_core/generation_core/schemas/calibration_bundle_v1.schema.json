@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://streasoner.local/schemas/calibration_bundle_v1.schema.json",
+  "title": "Versioned empirical calibration artifact",
+  "type": "object",
+  "required": [
+    "schema_version", "domain", "mechanism_id", "temporal_model_family",
+    "fitter_id", "parameter_estimates", "uncertainty",
+    "reference_data_fingerprint", "observation_fingerprint", "training_scope",
+    "fit_metrics", "holdout_metrics", "parameter_status", "created_at", "limitations"
+  ],
+  "properties": {
+    "schema_version": {"const": "calibration-bundle-v1"},
+    "domain": {"type": "string", "minLength": 1},
+    "mechanism_id": {"type": "string", "minLength": 1},
+    "temporal_model_family": {"type": "string", "minLength": 1},
+    "fitter_id": {"type": "string", "minLength": 1},
+    "parameter_estimates": {"type": "object"},
+    "uncertainty": {"type": "object"},
+    "reference_data_fingerprint": {"type": "string", "pattern": "^sha256:"},
+    "observation_fingerprint": {"type": "string", "pattern": "^sha256:"},
+    "training_scope": {"type": "object"},
+    "fit_metrics": {"type": "object"},
+    "holdout_metrics": {"type": "object"},
+    "parameter_status": {"const": "empirically_estimated_pending_domain_acceptance"},
+    "created_at": {"type": "string", "minLength": 1},
+    "limitations": {"type": "array", "items": {"type": "string"}}
+  },
+  "additionalProperties": false
+}

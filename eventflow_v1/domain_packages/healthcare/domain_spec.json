@@ -1,0 +1,73 @@
+{
+  "domain": "healthcare",
+  "implementation_status": "structure_only",
+  "entity_type_ids": [
+    "healthcare.patient",
+    "healthcare.encounter",
+    "healthcare.device",
+    "healthcare.specimen",
+    "healthcare.practitioner",
+    "healthcare.location"
+  ],
+  "context_relation_type_ids": [
+    "healthcare.device_monitors_patient",
+    "healthcare.specimen_from_patient",
+    "healthcare.practitioner_responsible_for_patient"
+  ],
+  "mechanism_families": [
+    "state_transition",
+    "observation",
+    "derivation",
+    "workflow",
+    "scheduled"
+  ],
+  "required_temporal_model_families": [
+    "scheduled_time",
+    "conditional_lognormal",
+    "piecewise_exponential_hazard",
+    "empirical_delay"
+  ],
+  "topology_contract": {
+    "representation": "sparse_typed_relation_layers",
+    "global_connectivity": "not_required",
+    "n_ary_relation_policy": "reify_as_typed_entity",
+    "spatial_coordinates_required": false,
+    "relation_layers": [
+      {
+        "relation_type_id": "healthcare.device_monitors_patient",
+        "family": "typed_bipartite",
+        "source_type_ids": ["healthcare.device"],
+        "target_type_ids": ["healthcare.patient"],
+        "directed": true,
+        "expected_out_degree": 1.5,
+        "max_out_degree": 8,
+        "ensure_weak_connectivity": false,
+        "temporal_validity_allowed": true
+      },
+      {
+        "relation_type_id": "healthcare.specimen_from_patient",
+        "family": "typed_bipartite",
+        "source_type_ids": ["healthcare.specimen"],
+        "target_type_ids": ["healthcare.patient"],
+        "directed": true,
+        "expected_out_degree": 1.0,
+        "max_out_degree": 2,
+        "ensure_weak_connectivity": false,
+        "temporal_validity_allowed": true
+      },
+      {
+        "relation_type_id": "healthcare.practitioner_responsible_for_patient",
+        "family": "typed_bipartite",
+        "source_type_ids": ["healthcare.practitioner"],
+        "target_type_ids": ["healthcare.patient"],
+        "directed": true,
+        "expected_out_degree": 4.0,
+        "max_out_degree": 16,
+        "ensure_weak_connectivity": false,
+        "temporal_validity_allowed": true
+      }
+    ],
+    "parameter_status": "structure_only_pending_reference_fit"
+  },
+  "implementation_note": "No clinical event probabilities are supplied until an approved reference dataset and validation protocol are selected."
+}

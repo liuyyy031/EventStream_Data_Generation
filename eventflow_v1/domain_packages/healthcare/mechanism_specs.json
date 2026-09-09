@@ -1,0 +1,6 @@
+{
+  "schema_version": "mechanism-spec-v1",
+  "domain": "healthcare",
+  "implementation_status": "structure_only_pending_reference_data",
+  "mechanisms": []
+}

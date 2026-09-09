@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://streasoner.local/schemas/mechanism_spec_contract_v1.schema.json",
+  "title": "Domain mechanism specification",
+  "type": "object",
+  "required": ["schema_version", "domain", "implementation_status", "mechanisms"],
+  "properties": {
+    "schema_version": {"const": "mechanism-spec-v1"},
+    "domain": {"type": "string", "minLength": 1},
+    "implementation_status": {"type": "string", "minLength": 1},
+    "mechanisms": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "mechanism_id", "source_event_type_ids", "target_event_type_id",
+          "parent_combination", "required_context_relation_type_ids",
+          "temporal_model_family", "generation_temporal_model_ref",
+          "covariate_fields", "relation_semantics", "evidence_policy",
+          "calibration_fitter_id", "parameter_status"
+        ],
+        "properties": {
+          "mechanism_id": {"type": "string", "minLength": 1},
+          "source_event_type_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "target_event_type_id": {"type": "string", "minLength": 1},
+          "parent_combination": {"enum": ["none", "single", "all_of", "any_of", "k_of_n", "ordered_sequence"]},
+          "required_context_relation_type_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "temporal_model_family": {"type": "string", "minLength": 1},
+          "generation_temporal_model_ref": {"type": "string", "minLength": 1},
+          "covariate_fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+          "relation_semantics": {"type": "string", "minLength": 1},
+          "evidence_policy": {"type": "string", "minLength": 1},
+          "calibration_fitter_id": {"type": ["string", "null"]},
+          "parameter_status": {"type": "string", "minLength": 1},
+          "notes": {"type": "string"}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

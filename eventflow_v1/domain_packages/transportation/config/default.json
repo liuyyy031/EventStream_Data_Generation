@@ -1,0 +1,32 @@
+{
+  "domain": "transportation",
+  "seed": 20260716,
+  "episode_count": 10,
+  "max_events_per_episode": 512,
+  "domain_config": {
+    "base_seed": 20260716,
+    "context_count": 4,
+    "nodes_per_context": 1000,
+    "topology_profile": {
+      "expected_out_degree_range": [1.4, 3.2],
+      "max_out_degree": 8,
+      "community_count_range": [3, 10],
+      "within_community_bias_range": [1.5, 5.0],
+      "degree_sigma_range": [0.45, 1.0],
+      "hub_fraction_range": [0.02, 0.08],
+      "hub_multiplier_range": [2.0, 5.0]
+    },
+    "duration_seconds": 7200.0,
+    "start_time": "2026-07-16T08:00:00+08:00",
+    "root_rate_per_hour": 1.5,
+    "max_root_events": 3,
+    "max_propagation_depth": 4,
+    "scenario_weights": {
+      "accident_propagation": 0.35,
+      "weather_disruption": 0.25,
+      "planned_closure": 0.2,
+      "compound_weather_accident": 0.2
+    }
+  },
+  "output_directory": "data_generation/output_multidomain_transportation"
+}

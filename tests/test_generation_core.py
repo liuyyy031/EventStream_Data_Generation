@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+import json
 import sys
 import unittest
 import uuid
@@ -26,13 +27,27 @@ from generation_core.domain import (  # noqa: E402
     EpisodeContext,
     ObservationPlan,
 )
+from generation_core.domain_spec import load_domain_spec  # noqa: E402
+from generation_core.calibration import (  # noqa: E402
+    CalibrationEngine,
+    build_root_event_observations,
+)
+from generation_core.mechanisms import load_mechanism_registry  # noqa: E402
 from generation_core.models import (  # noqa: E402
     Candidate,
     CandidateStatus,
+    ContextRelation,
     Entity,
     EventParticipant,
     EventRecord,
     TemporalExtent,
+)
+from generation_core.reference_data import (  # noqa: E402
+    NormalizedJsonlReferenceAdapter,
+    ReferenceDataset,
+    ReferenceEvent,
+    ReferenceWindow,
+    validate_reference_dataset,
 )
 from generation_core.pipeline import GenerationPipeline  # noqa: E402
 from generation_core.scheduler import SimulationEngine, _resolve_activation_time  # noqa: E402
@@ -41,6 +56,339 @@ from generation_core.temporal import (  # noqa: E402
     PiecewiseExponentialHazardModel,
     TemporalModelRegistry,
 )
+from generation_core.topology import (  # noqa: E402
+    ContextRelationIndex,
+    RelationLayerSpec,
+    SparseHeterogeneousTopologyGenerator,
+)
+
+
+class TopologyTest(unittest.TestCase):
+    def test_all_domain_topology_specs_compile_without_event_priors(self) -> None:
+        package_root = DATA_GENERATION / "domain_packages"
+        for domain in ("transportation", "healthcare", "distributed_systems"):
+            with self.subTest(domain=domain):
+                spec = load_domain_spec(package_root / domain / "domain_spec.json")
+                builders = {}
+                if domain == "transportation":
+                    builders["transportation.downstream_relation.v1"] = (
+                        lambda _source, _target, _rng: {}
+                    )
+                layers = spec.compile_relation_layers(attribute_builders=builders)
+                self.assertTrue(layers)
+                self.assertTrue(
+                    all(
+                        set(layer.source_type_ids + layer.target_type_ids)
+                        <= set(spec.entity_type_ids)
+                        for layer in layers
+                    )
+                )
+                if spec.raw["implementation_status"] == "structure_only":
+                    self.assertNotIn("event_probabilities", spec.raw)
+
+    def test_domain_spec_rejects_undeclared_layer_override(self) -> None:
+        spec = load_domain_spec(
+            DATA_GENERATION
+            / "domain_packages"
+            / "healthcare"
+            / "domain_spec.json"
+        )
+        with self.assertRaises(ValueError):
+            spec.compile_relation_layers(
+                parameter_overrides={"healthcare.unknown_relation": {"max_out_degree": 3}}
+            )
+
+    def test_relation_index_filters_dynamic_edges_by_time_and_direction(self) -> None:
+        relation = ContextRelation(
+            relation_id="r1",
+            domain="test",
+            relation_type_id="test.connects",
+            source_entity_id="source",
+            target_entity_id="target",
+            valid_from_offset_seconds=10.0,
+            valid_to_offset_seconds=20.0,
+        )
+        index = ContextRelationIndex([relation])
+        self.assertEqual(index.neighbors("source", "test.connects", at_time=9.9), [])
+        self.assertEqual(
+            index.neighbors("source", "test.connects", at_time=10.0)[0].neighbor_entity_id,
+            "target",
+        )
+        self.assertEqual(
+            index.neighbors(
+                "target", "test.connects", at_time=20.0, direction="incoming"
+            )[0].neighbor_entity_id,
+            "source",
+        )
+        self.assertEqual(index.neighbors("source", "test.connects", at_time=20.1), [])
+
+
+class CalibrationContractTest(unittest.TestCase):
+    def _transport_registry(self):
+        return load_mechanism_registry(
+            DATA_GENERATION
+            / "domain_packages"
+            / "transportation"
+            / "mechanism_specs.json"
+        )
+
+    def _reference_dataset(self) -> ReferenceDataset:
+        windows = [
+            ReferenceWindow("train_a", "context_a", "transportation", "2026-01-01T00:00:00+00:00", 100.0, "train"),
+            ReferenceWindow("train_b", "context_b", "transportation", "2026-01-01T00:00:00+00:00", 100.0, "train"),
+            ReferenceWindow("holdout_a", "context_c", "transportation", "2026-01-01T00:00:00+00:00", 100.0, "holdout"),
+        ]
+        participant = [EventParticipant("road_1", "affected_entity")]
+        events = [
+            ReferenceEvent("e1", "train_a", "context_a", "transportation", COLLISION, 10.0, participant),
+            ReferenceEvent("e2", "train_a", "context_a", "transportation", COLLISION, 40.0, participant),
+            ReferenceEvent("e3", "train_b", "context_b", "transportation", COLLISION, 30.0, participant),
+            ReferenceEvent("e4", "holdout_a", "context_c", "transportation", COLLISION, 20.0, participant),
+            ReferenceEvent("e5", "holdout_a", "context_c", "transportation", COLLISION, 70.0, participant),
+        ]
+        return ReferenceDataset(
+            "transportation",
+            windows,
+            events,
+            source_metadata={
+                "domain": "transportation",
+                "source_dataset_id": "unit_test_reference",
+                "source_version": "1",
+                "split_policy": {
+                    "unit": "context",
+                    "assignment_method": "fixed_unit_test_assignment",
+                    "allow_overlapping_windows": False,
+                },
+            },
+        )
+
+    def test_all_domain_mechanism_files_compile_without_cross_domain_core_logic(self) -> None:
+        root = DATA_GENERATION / "domain_packages"
+        transportation = self._transport_registry()
+        healthcare = load_mechanism_registry(root / "healthcare" / "mechanism_specs.json")
+        distributed = load_mechanism_registry(root / "distributed_systems" / "mechanism_specs.json")
+        self.assertEqual(len(transportation), 11)
+        self.assertEqual(len(healthcare), 0)
+        self.assertEqual(len(distributed), 0)
+        joint = transportation.get(
+            "transportation.weather_collision_joint_to_congestion"
+        )
+        self.assertEqual(joint.parent_combination, "all_of")
+
+    def test_reference_contract_and_constant_rate_mle_use_holdout_separately(self) -> None:
+        dataset = self._reference_dataset()
+        report = validate_reference_dataset(dataset)
+        self.assertTrue(report["passed"])
+        mechanism = self._transport_registry().get(
+            "transportation.exogenous_incident_arrival"
+        )
+        observations = build_root_event_observations(dataset, mechanism)
+        train = [item for item in observations if item.split == "train"]
+        holdout = [item for item in observations if item.split == "holdout"]
+        bundle = CalibrationEngine().fit(
+            mechanism,
+            train,
+            holdout_observations=holdout,
+            reference_data_fingerprint=dataset.fingerprint(),
+        )
+        self.assertAlmostEqual(bundle.parameter_estimates["rate_per_second"], 3.0 / 200.0)
+        self.assertEqual(bundle.training_scope["window_count"], 2)
+        self.assertEqual(bundle.holdout_metrics["observed_event_count"], 2)
+        self.assertAlmostEqual(bundle.holdout_metrics["expected_event_count"], 1.5)
+        self.assertEqual(
+            bundle.parameter_status,
+            "empirically_estimated_pending_domain_acceptance",
+        )
+
+    def test_normalized_jsonl_adapter_preserves_source_fingerprint(self) -> None:
+        dataset = self._reference_dataset()
+        root = DATA_GENERATION / "test_runtime_output" / f"reference_{uuid.uuid4().hex}"
+        root.mkdir(parents=True)
+        (root / "reference_manifest.json").write_text(
+            json.dumps(dataset.source_metadata),
+            encoding="utf-8",
+        )
+        (root / "reference_windows.jsonl").write_text(
+            "\n".join(json.dumps(item.to_dict()) for item in dataset.windows) + "\n",
+            encoding="utf-8",
+        )
+        (root / "reference_events.jsonl").write_text(
+            "\n".join(json.dumps(item.to_dict()) for item in dataset.events) + "\n",
+            encoding="utf-8",
+        )
+        loaded = NormalizedJsonlReferenceAdapter().load(root)
+        self.assertEqual(len(loaded.windows), 3)
+        self.assertEqual(len(loaded.events), 5)
+        self.assertTrue(validate_reference_dataset(loaded)["passed"])
+        loaded_again = NormalizedJsonlReferenceAdapter().load(root)
+        self.assertEqual(loaded.fingerprint(), loaded_again.fingerprint())
+
+    def test_reference_contract_rejects_future_explicit_parent(self) -> None:
+        dataset = self._reference_dataset()
+        participant = [EventParticipant("road_1", "affected_entity")]
+        dataset.events.append(
+            ReferenceEvent(
+                "bad_child",
+                "train_a",
+                "context_a",
+                "transportation",
+                COLLISION,
+                5.0,
+                participant,
+                explicit_parent_record_ids=["e2"],
+            )
+        )
+        report = validate_reference_dataset(dataset)
+        self.assertFalse(report["passed"])
+        self.assertTrue(any("later explicit parent" in item for item in report["errors"]))
+
+    def test_context_split_policy_rejects_context_leakage(self) -> None:
+        dataset = self._reference_dataset()
+        dataset.windows.append(
+            ReferenceWindow(
+                "leaked_holdout",
+                "context_a",
+                "transportation",
+                "2026-01-02T00:00:00+00:00",
+                100.0,
+                "holdout",
+            )
+        )
+        report = validate_reference_dataset(dataset)
+        self.assertFalse(report["passed"])
+        self.assertTrue(any("leaks across" in item for item in report["errors"]))
+
+
+class TopologyGenerationTest(unittest.TestCase):
+    def test_sparse_irregular_topology_is_reproducible_and_not_a_chain(self) -> None:
+        entities = [
+            Entity(
+                entity_id=f"entity_{index:05d}",
+                domain="test",
+                entity_type_id="test.node",
+                context_id="context",
+            )
+            for index in range(1000)
+        ]
+        layer = RelationLayerSpec(
+            relation_type_id="test.depends_on",
+            source_type_ids=("test.node",),
+            target_type_ids=("test.node",),
+            expected_out_degree=2.4,
+            max_out_degree=7,
+            community_count=8,
+            within_community_bias=3.0,
+            degree_sigma=0.8,
+            hub_fraction=0.05,
+            hub_multiplier=4.0,
+            ensure_weak_connectivity=True,
+        )
+        generator = SparseHeterogeneousTopologyGenerator()
+        first = generator.generate(
+            context_id="context",
+            domain="test",
+            entities=entities,
+            layers=[layer],
+            seed=19,
+        )
+        second = generator.generate(
+            context_id="context",
+            domain="test",
+            entities=entities,
+            layers=[layer],
+            seed=19,
+        )
+        self.assertEqual(
+            [item.to_dict() for item in first.relations],
+            [item.to_dict() for item in second.relations],
+        )
+        stats = first.statistics["layers"][0]
+        self.assertEqual(stats["weak_component_count"], 1)
+        self.assertGreater(stats["max_out_degree"], 2)
+        self.assertGreater(stats["unique_out_degree_count"], 3)
+        self.assertLess(len(first.relations), len(entities) * 3)
+        self.assertFalse(first.statistics["dense_matrix_materialized"])
+
+    def test_typed_layer_never_creates_semantically_invalid_edges(self) -> None:
+        entities = [
+            *[
+                Entity(f"device_{index}", "healthcare", "healthcare.device")
+                for index in range(20)
+            ],
+            *[
+                Entity(f"patient_{index}", "healthcare", "healthcare.patient")
+                for index in range(40)
+            ],
+        ]
+        layer = RelationLayerSpec(
+            relation_type_id="healthcare.device_monitors_patient",
+            source_type_ids=("healthcare.device",),
+            target_type_ids=("healthcare.patient",),
+            family="typed_bipartite",
+            expected_out_degree=2.0,
+            max_out_degree=4,
+            ensure_weak_connectivity=False,
+        )
+        result = SparseHeterogeneousTopologyGenerator().generate(
+            context_id="clinical_context",
+            domain="healthcare",
+            entities=entities,
+            layers=[layer],
+            seed=23,
+        )
+        type_by_id = {item.entity_id: item.entity_type_id for item in entities}
+        self.assertTrue(result.relations)
+        self.assertTrue(
+            all(
+                type_by_id[item.source_entity_id] == "healthcare.device"
+                and type_by_id[item.target_entity_id] == "healthcare.patient"
+                for item in result.relations
+            )
+        )
+
+    def test_directed_acyclic_layer_and_temporal_validity(self) -> None:
+        entities = [
+            Entity(f"step_{index:03d}", "test", "test.workflow_step")
+            for index in range(100)
+        ]
+        layer = RelationLayerSpec(
+            relation_type_id="test.precedes",
+            source_type_ids=("test.workflow_step",),
+            target_type_ids=("test.workflow_step",),
+            family="directed_acyclic",
+            directed=True,
+            allow_cycles=False,
+            expected_out_degree=1.6,
+            max_out_degree=4,
+            ensure_weak_connectivity=True,
+            temporal_edge_fraction=1.0,
+        )
+        result = SparseHeterogeneousTopologyGenerator().generate(
+            context_id="workflow",
+            domain="test",
+            entities=entities,
+            layers=[layer],
+            seed=29,
+            observation_window_seconds=1000.0,
+        )
+        rank = {
+            entity_id: index
+            for index, entity_id in enumerate(
+                sorted(entity.entity_id for entity in entities)
+            )
+        }
+        self.assertEqual(
+            result.statistics["layers"][0]["weak_component_count"], 1
+        )
+        self.assertTrue(
+            all(
+                rank[item.source_entity_id] < rank[item.target_entity_id]
+                and item.valid_from_offset_seconds is not None
+                and item.valid_to_offset_seconds is not None
+                and item.valid_from_offset_seconds <= item.valid_to_offset_seconds
+                for item in result.relations
+            )
+        )
 
 
 class TemporalModelTest(unittest.TestCase):
@@ -151,8 +499,7 @@ class SchedulerTest(unittest.TestCase):
     def test_transportation_package_is_reproducible_and_valid(self) -> None:
         config = {
             "nodes_per_context": 24,
-            "network_count": 1,
-            "structure_families": ["corridor"],
+            "context_count": 1,
             "duration_seconds": 3600.0,
             "root_rate_per_hour": 6.0,
             "max_root_events": 2,
@@ -167,22 +514,50 @@ class SchedulerTest(unittest.TestCase):
             [event.to_dict() for event in second.events],
         )
         self.assertTrue(first.event_relations)
+        road_entities = [
+            item for item in first.entities
+            if item.entity_type_id == "transportation.road.segment"
+        ]
+        self.assertTrue(
+            all("x" not in item.attributes and "y" not in item.attributes for item in road_entities)
+        )
+        topology = first.context_attributes["topology_profile"]
+        self.assertEqual(
+            topology["generator_family"], "constrained_degree_weighted_block"
+        )
+        self.assertFalse(topology["spatial_coordinates_required"])
+        self.assertEqual(
+            topology["observed_statistics"]["layers"][0]["weak_component_count"],
+            1,
+        )
         self.assertTrue(
             all(relation.temporal_link.temporal_model_ref for relation in first.event_relations)
         )
         context_relation_by_id = {
             relation.relation_id: relation for relation in first.context_relations
         }
-        for relation in first.event_relations:
-            context_relation_id = relation.attributes.get("context_relation_id")
-            if context_relation_id:
-                minimum = context_relation_by_id[
-                    context_relation_id
-                ].attributes["free_flow_seconds"]
-                self.assertGreaterEqual(
-                    relation.temporal_link.lag_seconds + 1e-6,
-                    minimum,
-                )
+        propagation_relations = [
+            relation
+            for relation in first.event_relations
+            if relation.relation_type_id == "transportation.propagates_downstream"
+        ]
+        self.assertTrue(propagation_relations)
+        self.assertNotIn("outgoing", first.final_state)
+        for relation in propagation_relations:
+            evidence = relation.context_evidence
+            self.assertEqual(len(evidence.context_relation_ids), 1)
+            self.assertEqual(len(evidence.entity_ids), 2)
+            self.assertTrue(evidence.state_predicates)
+            self.assertTrue(all(item.passed for item in evidence.state_predicates))
+            context_relation_id = evidence.context_relation_ids[0]
+            minimum = context_relation_by_id[
+                context_relation_id
+            ].attributes["free_flow_seconds"]
+            self.assertGreaterEqual(
+                relation.temporal_link.lag_seconds + 1e-6,
+                minimum,
+            )
+            self.assertNotIn("context_relation_id", relation.attributes)
         self.assertTrue(
             all(
                 event.temporal.observed_at_offset_seconds
@@ -192,6 +567,38 @@ class SchedulerTest(unittest.TestCase):
                 for event in first.events
             )
         )
+
+    def test_transportation_contexts_sample_distinct_irregular_profiles(self) -> None:
+        package = TransportationPackage(
+            {
+                "nodes_per_context": 200,
+                "context_count": 4,
+                "base_seed": 20260822,
+            }
+        )
+        profiles = []
+        for episode_index in range(4):
+            context = package.create_episode_context(
+                episode_index, 20260822 + episode_index
+            )
+            profile = context.context_attributes["topology_profile"]
+            profiles.append(profile)
+            layer_stats = profile["observed_statistics"]["layers"][0]
+            self.assertEqual(layer_stats["weak_component_count"], 1)
+            self.assertGreater(layer_stats["unique_out_degree_count"], 2)
+            self.assertLess(
+                layer_stats["edge_count"],
+                200 * profile["max_out_degree"],
+            )
+        signatures = {
+            (
+                item["expected_out_degree"],
+                item["community_count"],
+                item["degree_sigma"],
+            )
+            for item in profiles
+        }
+        self.assertGreater(len(signatures), 1)
 
     def test_transportation_mechanism_families_and_compound_parentage(self) -> None:
         expected_root_type = {
@@ -205,7 +612,7 @@ class SchedulerTest(unittest.TestCase):
                 package = TransportationPackage(
                     {
                         "nodes_per_context": 12,
-                        "network_count": 1,
+                        "context_count": 1,
                         "duration_seconds": 14_400.0,
                         "root_rate_per_hour": 20.0,
                         "max_root_events": 1,
@@ -239,7 +646,7 @@ class SchedulerTest(unittest.TestCase):
         package = TransportationPackage(
             {
                 "nodes_per_context": 8,
-                "network_count": 1,
+                "context_count": 1,
                 "duration_seconds": 0.001,
                 "root_rate_per_hour": 0.0001,
             }
@@ -255,7 +662,7 @@ class SchedulerTest(unittest.TestCase):
         package = TransportationPackage(
             {
                 "nodes_per_context": 8,
-                "network_count": 1,
+                "context_count": 1,
                 "duration_seconds": 3600.0,
                 "root_rate_per_hour": 100.0,
             }
@@ -284,7 +691,7 @@ class SchedulerTest(unittest.TestCase):
         package = TransportationPackage(
             {
                 "nodes_per_context": 12,
-                "network_count": 1,
+                "context_count": 1,
                 "duration_seconds": 1200.0,
                 "root_rate_per_hour": 10.0,
             }
@@ -320,7 +727,7 @@ class SchedulerTest(unittest.TestCase):
         package = TransportationPackage(
             {
                 "nodes_per_context": 8,
-                "network_count": 1,
+                "context_count": 1,
                 "duration_seconds": 3600.0,
                 "root_rate_per_hour": 100.0,
                 "scenario_weights": {"accident_propagation": 1.0},
