@@ -19,6 +19,8 @@ class DatasetWriter:
         "events": "events.jsonl",
         "event_relations": "event_relations.jsonl",
         "candidates": "candidates.jsonl",
+        "risk_sets": "risk_sets.jsonl",
+        "judge_results": "judge_results.jsonl",
         "episode_texts": "episode_texts.jsonl",
         "validation": "validation.jsonl",
     }
@@ -62,6 +64,7 @@ class DatasetWriter:
                     "domain": result.domain,
                     "entity_count": len(result.entities),
                     "context_relation_count": len(result.context_relations),
+                    "attributes": result.context_attributes,
                 },
             )
             self._written_contexts.add(result.context_id)
@@ -80,12 +83,17 @@ class DatasetWriter:
             self._write("event_relations", relation.to_dict())
         for candidate in result.candidates:
             self._write("candidates", candidate.to_dict())
+        for risk_set in result.risk_sets:
+            self._write("risk_sets", risk_set.to_dict())
         self._write(
             "validation", {"episode_id": result.episode_id, **result.validation}
         )
 
     def write_episode_text(self, payload: Dict[str, Any]) -> None:
         self._write("episode_texts", payload)
+
+    def write_judge_result(self, payload: Dict[str, Any]) -> None:
+        self._write("judge_results", payload)
 
     def write_json(self, filename: str, payload: Dict[str, Any]) -> None:
         with (self.output_dir / filename).open("w", encoding="utf-8", newline="\n") as handle:

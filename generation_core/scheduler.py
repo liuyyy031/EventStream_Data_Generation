@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import heapq
+import math
 import random
 from itertools import count
 from typing import Dict, List, Tuple
@@ -15,6 +16,8 @@ from .models import (
     EventRecord,
     EventRelation,
     EpisodeResult,
+    RiskAlternativeEvidence,
+    RiskSetRecord,
     TemporalLink,
 )
 from .temporal import TemporalModelRegistry
@@ -45,11 +48,13 @@ class SimulationEngine:
         events: List[EventRecord] = []
         event_by_id: Dict[str, EventRecord] = {}
         relations: List[EventRelation] = []
+        risk_sets: List[RiskSetRecord] = []
         heap: List[Tuple[float, int, int, int, str, int]] = []
         sequence = count()
         candidate_counter = count(1)
         event_counter = count(1)
         relation_counter = count(1)
+        risk_set_counter = count(1)
         last_processed_time = 0.0
 
         def push(candidate: Candidate) -> None:
@@ -84,6 +89,7 @@ class SimulationEngine:
                 combination=spec.combination,
                 phase_priority=spec.phase_priority,
                 domain_priority=spec.domain_priority,
+                context_evidence=copy.deepcopy(spec.context_evidence),
                 attributes=copy.deepcopy(spec.attributes),
                 provenance=copy.deepcopy(spec.provenance),
             )
@@ -115,14 +121,44 @@ class SimulationEngine:
                 break
             last_processed_time = due
 
-            decision = self.domain_package.revalidate_candidate(
-                candidate, context, event_by_id, due
-            )
-            if not decision.valid:
-                _terminate_candidate(candidate, decision.reason, decision.superseded_by_event_id)
+            # Recheck every currently active alternative at the decision time.
+            # This keeps expired context links and stale state predicates out of
+            # the risk set instead of recording them as possible next events.
+            for active in list(candidates.values()):
+                if (
+                    active.status is not CandidateStatus.SCHEDULED
+                    or active.activation_time > due + 1e-9
+                ):
+                    continue
+                decision = self.domain_package.revalidate_candidate(
+                    active, context, event_by_id, due
+                )
+                if decision.context_evidence is not None:
+                    active.context_evidence = copy.deepcopy(decision.context_evidence)
+                if not decision.valid:
+                    _terminate_candidate(
+                        active, decision.reason, decision.superseded_by_event_id
+                    )
+            if candidate.status is not CandidateStatus.SCHEDULED:
                 continue
 
             event_id = f"{context.episode_id}_event_{next(event_counter):06d}"
+            risk_set = _build_risk_set(
+                risk_set_id=(
+                    f"{context.episode_id}_risk_set_{next(risk_set_counter):06d}"
+                ),
+                event_id=event_id,
+                selected=candidate,
+                candidates=candidates,
+                at_time=due,
+                temporal_models=self.temporal_models,
+            )
+            risk_sets.append(risk_set)
+            candidate.risk_set_id = risk_set.risk_set_id
+            candidate.selection_evidence = {
+                "selection_mode": risk_set.selection_mode,
+                **_selected_factor_summary(risk_set.factorization),
+            }
             event = self.domain_package.materialize_event(
                 event_id, candidate, context, rng
             )
@@ -138,6 +174,8 @@ class SimulationEngine:
                 self.temporal_models,
                 rng,
             )
+            event.provenance["risk_set_id"] = risk_set.risk_set_id
+            event.provenance["selection_mode"] = risk_set.selection_mode
             candidate.status = CandidateStatus.FIRED
             candidate.fired_event_id = event.event_id
             candidate.terminal_reason = "candidate_fired"
@@ -169,6 +207,8 @@ class SimulationEngine:
                 update = self.domain_package.revalidate_candidate(
                     active, context, event_by_id, due
                 )
+                if update.context_evidence is not None:
+                    active.context_evidence = copy.deepcopy(update.context_evidence)
                 if not update.valid:
                     _terminate_candidate(
                         active, update.reason, update.superseded_by_event_id
@@ -212,8 +252,10 @@ class SimulationEngine:
             events=events,
             event_relations=relations,
             candidates=list(candidates.values()),
+            risk_sets=risk_sets,
             final_state=copy.deepcopy(context.state),
             termination_reason=termination_reason,
+            context_attributes=copy.deepcopy(context.context_attributes),
             episode_attributes=copy.deepcopy(context.episode_attributes),
         )
         result.validation = validate_episode_result(
@@ -222,10 +264,233 @@ class SimulationEngine:
         return result
 
 
+def _build_risk_set(
+    *,
+    risk_set_id: str,
+    event_id: str,
+    selected: Candidate,
+    candidates: Dict[str, Candidate],
+    at_time: float,
+    temporal_models: TemporalModelRegistry,
+) -> RiskSetRecord:
+    active = sorted(
+        (
+            candidate
+            for candidate in candidates.values()
+            if candidate.status is CandidateStatus.SCHEDULED
+            and candidate.activation_time <= at_time + 1e-9
+        ),
+        key=lambda item: item.candidate_id,
+    )
+    alternatives: List[RiskAlternativeEvidence] = []
+    for candidate in active:
+        measure = temporal_models.measure(candidate, at_time)
+        alternatives.append(
+            RiskAlternativeEvidence(
+                candidate_id=candidate.candidate_id,
+                mechanism_id=candidate.mechanism_id,
+                target_event_type_id=candidate.target_event_type_id,
+                participant_entity_ids=sorted(
+                    {item.entity_id for item in candidate.participants}
+                ),
+                parent_event_ids=list(candidate.parent_event_ids),
+                temporal_model_ref=candidate.temporal_model_ref,
+                scheduled_time=candidate.scheduled_time,
+                clock_measure=measure,
+            )
+        )
+
+    selected_alternative = next(
+        item for item in alternatives if item.candidate_id == selected.candidate_id
+    )
+    due_atoms = [
+        item
+        for item in alternatives
+        if item.clock_measure.get("is_due_atom") is True
+    ]
+    selected_kind = selected_alternative.clock_measure.get("clock_kind")
+    factorization: Dict[str, object]
+    if due_atoms:
+        selection_mode = (
+            "deterministic_atom_priority"
+            if selected_kind == "deterministic_atom"
+            else "mixed_or_discrete_atom_priority"
+        )
+        factorization = {
+            "basis": "point_mass_or_policy_clock",
+            "continuous_hazard_factorization_applicable": False,
+            "selected_event_type_id": selected.target_event_type_id,
+            "selected_entity_ids": selected_alternative.participant_entity_ids,
+            "explanation": (
+                "A due point mass is resolved by the declared scheduler priorities; "
+                "no artificial continuous density is assigned."
+            ),
+        }
+    else:
+        continuous = [
+            item
+            for item in alternatives
+            if item.clock_measure.get("clock_kind") == "stochastic_continuous"
+            and item.clock_measure.get("hazard_per_second") is not None
+        ]
+        total_hazard = sum(
+            float(item.clock_measure["hazard_per_second"])
+            for item in continuous
+        )
+        if selected_kind == "stochastic_continuous" and total_hazard > 0.0:
+            selection_mode = "cause_specific_competing_hazards"
+            for item in continuous:
+                item.candidate_probability_given_time = (
+                    float(item.clock_measure["hazard_per_second"])
+                    / total_hazard
+                )
+            selected_hazard = float(
+                selected_alternative.clock_measure["hazard_per_second"]
+            )
+            type_hazard = sum(
+                float(item.clock_measure["hazard_per_second"])
+                for item in continuous
+                if item.target_event_type_id == selected.target_event_type_id
+            )
+            selected_entities = tuple(selected_alternative.participant_entity_ids)
+            entity_hazard = sum(
+                float(item.clock_measure["hazard_per_second"])
+                for item in continuous
+                if item.target_event_type_id == selected.target_event_type_id
+                and tuple(item.participant_entity_ids) == selected_entities
+            )
+            joint_log_survival = sum(
+                math.log(
+                    max(
+                        float(item.clock_measure.get("survival_probability", 1.0)),
+                        1e-300,
+                    )
+                )
+                for item in continuous
+            )
+            joint_survival = math.exp(max(-745.0, joint_log_survival))
+            factorization = {
+                "basis": "one_shared_competing-risk_set",
+                "continuous_hazard_factorization_applicable": True,
+                "history_conditioning": "candidate_activation_parents_context_and_state",
+                "time": {
+                    "total_hazard_per_second": total_hazard,
+                    "joint_survival_probability": joint_survival,
+                    "next_event_time_density_per_second": total_hazard
+                    * joint_survival,
+                },
+                "type_given_time": {
+                    "selected_event_type_id": selected.target_event_type_id,
+                    "hazard_sum_per_second": type_hazard,
+                    "probability": type_hazard / total_hazard,
+                },
+                "entity_given_time_and_type": {
+                    "selected_entity_ids": list(selected_entities),
+                    "hazard_sum_per_second": entity_hazard,
+                    "probability": entity_hazard / type_hazard,
+                },
+                "mechanism_given_time_type_and_entity": {
+                    "selected_mechanism_id": selected.mechanism_id,
+                    "hazard_per_second": selected_hazard,
+                    "probability": selected_hazard / entity_hazard,
+                },
+                "selected_candidate_probability_given_time": (
+                    selected_hazard / total_hazard
+                ),
+                "selected_joint_density_per_second": selected_hazard
+                * joint_survival,
+            }
+        else:
+            selection_mode = "sampled_clock_order_without_continuous_hazard"
+            factorization = {
+                "basis": "sampled_clock_order",
+                "continuous_hazard_factorization_applicable": False,
+                "selected_event_type_id": selected.target_event_type_id,
+                "selected_entity_ids": selected_alternative.participant_entity_ids,
+                "explanation": (
+                    "The selected clock does not expose a continuous hazard; "
+                    "its sampled due time remains auditable."
+                ),
+            }
+
+    if not selected.parent_event_ids:
+        parent_attribution = {
+            "mode": "independent_background",
+            "background_component": 1.0,
+            "weight_semantics": "generator_attribution_not_causal_effect_size",
+            "realized_parent_event_ids": [],
+        }
+    elif len(selected.parent_event_ids) == 1:
+        parent_attribution = {
+            "mode": "explicit_realized_parents",
+            "combination": selected.combination,
+            "realized_parent_event_ids": list(selected.parent_event_ids),
+            "contribution_weights": [
+                {"event_id": selected.parent_event_ids[0], "weight": 1.0}
+            ],
+            "weight_semantics": "generator_attribution_not_causal_effect_size",
+        }
+    else:
+        parent_attribution = {
+            "mode": "explicit_realized_parents",
+            "combination": selected.combination,
+            "realized_parent_event_ids": list(selected.parent_event_ids),
+            "contribution_weights": None,
+            "weight_semantics": "not_identified_for_explicit_combination_rule",
+            "explanation": (
+                "These parents jointly satisfied an explicit rule; no unsupported "
+                "probabilistic contribution split is asserted."
+            ),
+        }
+
+    return RiskSetRecord(
+        risk_set_id=risk_set_id,
+        episode_id=selected.episode_id,
+        evaluated_at_offset_seconds=at_time,
+        selected_candidate_id=selected.candidate_id,
+        selected_event_id=event_id,
+        selection_mode=selection_mode,
+        alternatives=alternatives,
+        factorization=factorization,
+        parent_attribution=parent_attribution,
+        tie_break={
+            "phase_priority": selected.phase_priority,
+            "domain_priority": selected.domain_priority,
+            "due_atom_candidate_ids": [item.candidate_id for item in due_atoms],
+        },
+        provenance={
+            "scheduler": "independent_candidate_clocks_with_equivalent_competing_risks",
+            "evaluated_before_selected_event_state_update": True,
+        },
+    )
+
+
+def _selected_factor_summary(factorization: Dict[str, object]) -> Dict[str, object]:
+    if not factorization.get("continuous_hazard_factorization_applicable"):
+        return {"continuous_hazard_factorization_applicable": False}
+    type_component = factorization["type_given_time"]
+    entity_component = factorization["entity_given_time_and_type"]
+    mechanism_component = factorization["mechanism_given_time_type_and_entity"]
+    assert isinstance(type_component, dict)
+    assert isinstance(entity_component, dict)
+    assert isinstance(mechanism_component, dict)
+    return {
+        "continuous_hazard_factorization_applicable": True,
+        "candidate_probability_given_time": factorization[
+            "selected_candidate_probability_given_time"
+        ],
+        "type_probability_given_time": type_component["probability"],
+        "entity_probability_given_time_and_type": entity_component["probability"],
+        "mechanism_probability_given_time_type_and_entity": mechanism_component[
+            "probability"
+        ],
+    }
+
+
 def _resolve_activation_time(
     spec: CandidateSpec, event_by_id: Dict[str, EventRecord]
 ) -> float:
-    if spec.combination not in {"single", "all_of", "any_of", "k_of_n", "ordered_sequence"}:
+    if spec.combination not in {"none", "single", "all_of", "any_of", "k_of_n", "ordered_sequence"}:
         raise ValueError(f"Unsupported parent combination: {spec.combination}")
     parent_times: List[float] = []
     for parent_id in spec.parent_event_ids:
@@ -236,8 +501,10 @@ def _resolve_activation_time(
         except KeyError as exc:
             raise ValueError(f"Candidate references missing parent event {parent_id}") from exc
     parent_count = len(parent_times)
-    if spec.combination == "single" and parent_count > 1:
-        raise ValueError("single candidates may record at most one realized parent")
+    if spec.combination == "none" and parent_count != 0:
+        raise ValueError("none candidates cannot record a realized parent")
+    if spec.combination == "single" and parent_count != 1:
+        raise ValueError("single candidates require exactly one realized parent")
     if spec.combination == "all_of" and parent_count < 2:
         raise ValueError("all_of candidates require at least two realized parents")
     if spec.combination == "any_of" and parent_count != 1:
@@ -365,6 +632,7 @@ def _materialize_relation(
         ),
         status=spec.status,
         mechanism_group_id=spec.mechanism_group_id,
+        context_evidence=copy.deepcopy(spec.context_evidence),
         attributes=copy.deepcopy(spec.attributes),
         provenance={
             "recorded_when_rule_executed": True,

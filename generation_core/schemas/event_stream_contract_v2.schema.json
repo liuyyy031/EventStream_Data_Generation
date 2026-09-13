@@ -12,14 +12,50 @@
       },
       "additionalProperties": false
     },
+    "state_predicate_evidence": {
+      "type": "object",
+      "required": ["subject_entity_id", "state_path", "operator", "expected", "actual", "passed"],
+      "properties": {
+        "subject_entity_id": {"type": ["string", "null"]},
+        "state_path": {"type": "string", "minLength": 1},
+        "operator": {"type": "string", "minLength": 1},
+        "expected": {},
+        "actual": {},
+        "passed": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "context_evidence": {
+      "type": "object",
+      "required": ["context_relation_ids", "entity_ids", "evaluated_at_offset_seconds", "state_predicates"],
+      "properties": {
+        "context_relation_ids": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "entity_ids": {
+          "type": "array",
+          "items": {"type": "string", "minLength": 1},
+          "uniqueItems": true
+        },
+        "evaluated_at_offset_seconds": {"type": ["number", "null"], "minimum": 0},
+        "state_predicates": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/state_predicate_evidence"}
+        }
+      },
+      "additionalProperties": false
+    },
     "context": {
       "type": "object",
-      "required": ["context_id", "domain", "entity_count", "context_relation_count"],
+      "required": ["context_id", "domain", "entity_count", "context_relation_count", "attributes"],
       "properties": {
         "context_id": {"type": "string", "minLength": 1},
         "domain": {"type": "string", "minLength": 1},
         "entity_count": {"type": "integer", "minimum": 0},
-        "context_relation_count": {"type": "integer", "minimum": 0}
+        "context_relation_count": {"type": "integer", "minimum": 0},
+        "attributes": {"type": "object"}
       },
       "additionalProperties": false
     },
@@ -161,6 +197,7 @@
         "rule_id",
         "temporal_link",
         "status",
+        "context_evidence",
         "attributes",
         "provenance"
       ],
@@ -170,13 +207,14 @@
         "source_event_id": {"type": "string", "minLength": 1},
         "target_event_id": {"type": "string", "minLength": 1},
         "relation_class": {
-          "enum": ["causal", "transition", "observation", "workflow", "communication", "derivation"]
+          "enum": ["causal", "statistical_influence", "transition", "observation", "workflow", "communication", "derivation"]
         },
         "relation_type_id": {"type": "string", "minLength": 1},
         "rule_id": {"type": "string", "minLength": 1},
         "temporal_link": {"$ref": "#/$defs/temporal_link"},
         "status": {"type": "string", "minLength": 1},
         "mechanism_group_id": {"type": ["string", "null"]},
+        "context_evidence": {"$ref": "#/$defs/context_evidence"},
         "attributes": {"type": "object"},
         "provenance": {"type": "object"}
       },
@@ -191,6 +229,7 @@
         "target_event_type_id",
         "activation_time",
         "temporal_model_ref",
+        "context_evidence",
         "status"
       ],
       "properties": {
@@ -203,8 +242,77 @@
         "activation_time": {"type": "number", "minimum": 0},
         "temporal_model_ref": {"type": "string", "minLength": 1},
         "temporal_inputs": {"type": "object"},
-        "combination": {"enum": ["single", "all_of", "any_of", "k_of_n", "ordered_sequence"]},
+        "combination": {"enum": ["none", "single", "all_of", "any_of", "k_of_n", "ordered_sequence"]},
+        "context_evidence": {"$ref": "#/$defs/context_evidence"},
         "status": {"enum": ["scheduled", "fired", "cancelled", "superseded", "right_censored"]}
+      },
+      "additionalProperties": true
+    },
+    "risk_alternative": {
+      "type": "object",
+      "required": [
+        "candidate_id", "mechanism_id", "target_event_type_id",
+        "participant_entity_ids", "parent_event_ids", "temporal_model_ref",
+        "scheduled_time", "clock_measure", "eligible",
+        "candidate_probability_given_time"
+      ],
+      "properties": {
+        "candidate_id": {"type": "string", "minLength": 1},
+        "mechanism_id": {"type": "string", "minLength": 1},
+        "target_event_type_id": {"type": "string", "minLength": 1},
+        "participant_entity_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "parent_event_ids": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+        "temporal_model_ref": {"type": "string", "minLength": 1},
+        "scheduled_time": {"type": ["number", "null"]},
+        "clock_measure": {"type": "object"},
+        "eligible": {"type": "boolean"},
+        "candidate_probability_given_time": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+      },
+      "additionalProperties": false
+    },
+    "risk_set": {
+      "type": "object",
+      "required": [
+        "risk_set_id", "episode_id", "evaluated_at_offset_seconds",
+        "selected_candidate_id", "selected_event_id", "selection_mode",
+        "alternatives", "factorization", "parent_attribution", "tie_break",
+        "provenance"
+      ],
+      "properties": {
+        "risk_set_id": {"type": "string", "minLength": 1},
+        "episode_id": {"type": "string", "minLength": 1},
+        "evaluated_at_offset_seconds": {"type": "number", "minimum": 0},
+        "selected_candidate_id": {"type": "string", "minLength": 1},
+        "selected_event_id": {"type": "string", "minLength": 1},
+        "selection_mode": {"type": "string", "minLength": 1},
+        "alternatives": {"type": "array", "items": {"$ref": "#/$defs/risk_alternative"}, "minItems": 1},
+        "factorization": {"type": "object"},
+        "parent_attribution": {"type": "object"},
+        "tie_break": {"type": "object"},
+        "provenance": {"type": "object"}
+      },
+      "additionalProperties": false
+    },
+    "judge_result": {
+      "type": "object",
+      "required": [
+        "episode_index", "episode_id", "generation_attempt", "seed",
+        "outcome", "passed", "mode", "reasons"
+      ],
+      "properties": {
+        "episode_index": {"type": "integer", "minimum": 0},
+        "episode_id": {"type": "string", "minLength": 1},
+        "generation_attempt": {"type": "integer", "minimum": 1},
+        "seed": {"type": "integer"},
+        "outcome": {"type": "string", "minLength": 1},
+        "passed": {"type": ["boolean", "null"]},
+        "mode": {"type": "string", "minLength": 1},
+        "reasons": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "flagged_record_ids": {"type": "array", "items": {"type": "string"}},
+        "protocol_attempt_count": {"type": "integer", "minimum": 0},
+        "model_id": {"type": ["string", "null"]},
+        "provider_base_url": {"type": ["string", "null"]},
+        "protocol_errors": {"type": "array", "items": {"type": "object"}}
       },
       "additionalProperties": true
     }
@@ -216,6 +324,8 @@
     {"$ref": "#/$defs/context_relation"},
     {"$ref": "#/$defs/event"},
     {"$ref": "#/$defs/event_relation"},
-    {"$ref": "#/$defs/candidate"}
+    {"$ref": "#/$defs/candidate"},
+    {"$ref": "#/$defs/risk_set"},
+    {"$ref": "#/$defs/judge_result"}
   ]
 }

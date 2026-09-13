@@ -8,12 +8,14 @@ from typing import Any, Dict, List, Optional, Protocol
 
 from .models import (
     Candidate,
+    ContextEvidence,
     ContextRelation,
     Entity,
     EpisodeResult,
     EventParticipant,
     EventRecord,
 )
+from .topology import ContextRelationIndex, RelationNeighbor
 
 
 @dataclass
@@ -26,11 +28,31 @@ class EpisodeContext:
     entities: List[Entity]
     context_relations: List[ContextRelation]
     state: Dict[str, Any] = field(default_factory=dict)
+    context_attributes: Dict[str, Any] = field(default_factory=dict)
     episode_attributes: Dict[str, Any] = field(default_factory=dict)
+    relation_index: ContextRelationIndex = field(init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        self.relation_index = ContextRelationIndex(self.context_relations)
 
     @property
     def entity_by_id(self) -> Dict[str, Entity]:
         return {entity.entity_id: entity for entity in self.entities}
+
+    def neighbors(
+        self,
+        entity_id: str,
+        relation_type_id: str | None = None,
+        *,
+        at_time: float | None = None,
+        direction: str = "outgoing",
+    ) -> List[RelationNeighbor]:
+        return self.relation_index.neighbors(
+            entity_id,
+            relation_type_id,
+            at_time=at_time,
+            direction=direction,
+        )
 
 
 @dataclass
@@ -45,6 +67,7 @@ class CandidateSpec:
     combination: str = "single"
     phase_priority: int = 20
     domain_priority: int = 0
+    context_evidence: ContextEvidence = field(default_factory=ContextEvidence)
     attributes: Dict[str, Any] = field(default_factory=dict)
     provenance: Dict[str, Any] = field(default_factory=dict)
 
@@ -55,6 +78,7 @@ class CandidateUpdate:
     reason: Optional[str] = None
     temporal_inputs: Optional[Dict[str, Any]] = None
     superseded_by_event_id: Optional[str] = None
+    context_evidence: Optional[ContextEvidence] = None
 
 
 @dataclass
@@ -67,6 +91,7 @@ class RelationSpec:
     target_anchor: str = "occurrence_start"
     status: str = "generated_ground_truth"
     mechanism_group_id: Optional[str] = None
+    context_evidence: ContextEvidence = field(default_factory=ContextEvidence)
     attributes: Dict[str, Any] = field(default_factory=dict)
     provenance: Dict[str, Any] = field(default_factory=dict)
 

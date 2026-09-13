@@ -52,6 +52,8 @@ from generation_core.reference_data import (  # noqa: E402
 from generation_core.pipeline import GenerationPipeline  # noqa: E402
 from generation_core.scheduler import SimulationEngine, _resolve_activation_time  # noqa: E402
 from generation_core.temporal import (  # noqa: E402
+    ConditionalGammaModel,
+    ConditionalWeibullModel,
     DeterministicDelayModel,
     PiecewiseExponentialHazardModel,
     TemporalModelRegistry,
@@ -174,6 +176,16 @@ class CalibrationContractTest(unittest.TestCase):
             "transportation.weather_collision_joint_to_congestion"
         )
         self.assertEqual(joint.parent_combination, "all_of")
+        self.assertEqual(
+            joint.selection_semantics,
+            "cause_specific_competing_hazard",
+        )
+        self.assertEqual(
+            joint.parent_attribution_mode,
+            "explicit_realized_parents",
+        )
+        root = transportation.get("transportation.exogenous_incident_arrival")
+        self.assertEqual(root.parent_attribution_mode, "independent_background")
 
     def test_reference_contract_and_constant_rate_mle_use_holdout_separately(self) -> None:
         dataset = self._reference_dataset()
@@ -392,6 +404,45 @@ class TopologyGenerationTest(unittest.TestCase):
 
 
 class TemporalModelTest(unittest.TestCase):
+    def test_gamma_and_weibull_expose_valid_continuous_clock_measures(self) -> None:
+        models = [
+            ConditionalGammaModel(
+                "test.gamma",
+                shape=2.0,
+                log_rate_intercept=-2.0,
+                coefficients={"load": 0.2},
+                minimum_seconds=0.1,
+                maximum_seconds=100.0,
+            ),
+            ConditionalWeibullModel(
+                "test.weibull",
+                shape=1.5,
+                log_scale_intercept=2.0,
+                coefficients={"load": -0.1},
+                minimum_seconds=0.1,
+                maximum_seconds=100.0,
+            ),
+        ]
+        for model in models:
+            with self.subTest(model=model.model_id):
+                candidate = Candidate(
+                    candidate_id="candidate",
+                    episode_id="episode",
+                    mechanism_id="mechanism",
+                    target_event_type_id="test.target",
+                    parent_event_ids=[],
+                    participants=[],
+                    activation_time=0.0,
+                    temporal_model_ref=model.model_id,
+                    temporal_inputs={"load": 0.4},
+                )
+                model.initialize(candidate, random.Random(17))
+                measure = model.measure(candidate, float(candidate.scheduled_time))
+                self.assertEqual(measure["clock_kind"], "stochastic_continuous")
+                self.assertGreater(measure["hazard_per_second"], 0.0)
+                self.assertGreaterEqual(measure["survival_probability"], 0.0)
+                self.assertLessEqual(measure["survival_probability"], 1.0)
+
     def test_time_varying_hazard_preserves_threshold_and_accumulates_hazard(self) -> None:
         model = PiecewiseExponentialHazardModel(
             "test.hazard", baseline_rate_per_second=0.1, coefficients={"load": 1.0}
@@ -495,6 +546,16 @@ class SchedulerTest(unittest.TestCase):
         status = {item.attributes["kind"]: item.status for item in result.candidates}
         self.assertEqual(status["stop"], CandidateStatus.FIRED)
         self.assertEqual(status["dependent"], CandidateStatus.CANCELLED)
+        self.assertEqual(len(result.risk_sets), 1)
+        self.assertEqual(
+            result.risk_sets[0].selection_mode,
+            "deterministic_atom_priority",
+        )
+        self.assertFalse(
+            result.risk_sets[0].factorization[
+                "continuous_hazard_factorization_applicable"
+            ]
+        )
 
     def test_transportation_package_is_reproducible_and_valid(self) -> None:
         config = {
@@ -514,6 +575,34 @@ class SchedulerTest(unittest.TestCase):
             [event.to_dict() for event in second.events],
         )
         self.assertTrue(first.event_relations)
+        self.assertEqual(len(first.risk_sets), len(first.events))
+        continuous = [
+            item
+            for item in first.risk_sets
+            if item.selection_mode == "cause_specific_competing_hazards"
+        ]
+        self.assertTrue(continuous)
+        for risk_set in continuous:
+            probabilities = [
+                item.candidate_probability_given_time
+                for item in risk_set.alternatives
+                if item.candidate_probability_given_time is not None
+            ]
+            self.assertAlmostEqual(sum(probabilities), 1.0)
+            self.assertIn(
+                risk_set.selected_candidate_id,
+                {item.candidate_id for item in risk_set.alternatives},
+            )
+            factorization = risk_set.factorization
+            decomposed = (
+                factorization["type_given_time"]["probability"]
+                * factorization["entity_given_time_and_type"]["probability"]
+                * factorization["mechanism_given_time_type_and_entity"]["probability"]
+            )
+            self.assertAlmostEqual(
+                decomposed,
+                factorization["selected_candidate_probability_given_time"],
+            )
         road_entities = [
             item for item in first.entities
             if item.entity_type_id == "transportation.road.segment"
@@ -717,6 +806,7 @@ class SchedulerTest(unittest.TestCase):
             "events.jsonl",
             "event_relations.jsonl",
                 "candidates.jsonl",
+                "risk_sets.jsonl",
                 "episode_texts.jsonl",
                 "validation.jsonl",
             "quality_report.json",
@@ -800,6 +890,7 @@ class _PriorityDomain:
                 participant,
                 "test.delay",
                 {},
+                combination="none",
                 phase_priority=10,
                 attributes={"kind": "stop"},
             ),
@@ -810,6 +901,7 @@ class _PriorityDomain:
                 participant,
                 "test.delay",
                 {},
+                combination="none",
                 phase_priority=20,
                 attributes={"kind": "dependent"},
             ),

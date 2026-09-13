@@ -1,0 +1,71 @@
+{
+  "schema_version": "event-stream-contract-v2",
+  "generator_version": "multidomain-generation-core-v0.3.0",
+  "domain": "transportation",
+  "seed": 20260914,
+  "created_at": "2026-09-13T22:55:28.848522+08:00",
+  "configuration": {
+    "domain": "transportation",
+    "seed": 20260914,
+    "episode_count": 20,
+    "max_events_per_episode": 512,
+    "domain_config": {
+      "base_seed": 20260914,
+      "context_count": 4,
+      "nodes_per_context": 1000,
+      "topology_profile": {
+        "expected_out_degree_range": [
+          1.4,
+          3.2
+        ],
+        "max_out_degree": 8,
+        "community_count_range": [
+          3,
+          10
+        ],
+        "within_community_bias_range": [
+          1.5,
+          5.0
+        ],
+        "degree_sigma_range": [
+          0.45,
+          1.0
+        ],
+        "hub_fraction_range": [
+          0.02,
+          0.08
+        ],
+        "hub_multiplier_range": [
+          2.0,
+          5.0
+        ]
+      },
+      "duration_seconds": 7200.0,
+      "start_time": "2026-07-16T08:00:00+08:00",
+      "root_rate_per_hour": 1.5,
+      "max_root_events": 3,
+      "max_propagation_depth": 4,
+      "scenario_weights": {
+        "accident_propagation": 0.35,
+        "weather_disruption": 0.25,
+        "planned_closure": 0.2,
+        "compound_weather_accident": 0.2
+      }
+    },
+    "output_directory": "data_generation/output_multidomain_transportation"
+  },
+  "contract_notes": {
+    "primary_validity_target": "mechanism_coherence_and_auditable_event_chains",
+    "context_topology_is_not_event_parenthood": true,
+    "domain_topology_spec_is_executable_and_type_checked": true,
+    "context_evidence_is_time_scoped_and_rule_specific": true,
+    "occurrence_observation_recording_times_are_separate": true,
+    "candidate_terminal_states_are_explicit": true,
+    "right_censoring_is_not_treated_as_non_occurrence": true,
+    "time_varying_hazards_preserve_random_thresholds": true,
+    "time_type_entity_choices_share_one_risk_set": true,
+    "deterministic_atoms_are_not_given_fictitious_densities": true,
+    "realized_parent_attribution_is_explicit": true,
+    "statistical_realism_requires_domain_fit_and_holdout_validation": true
+  }
+}

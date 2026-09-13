@@ -40,6 +40,17 @@ PARAMETER_STATUSES = {
     "pending_reference_data",
     "empirically_fitted",
 }
+SELECTION_SEMANTICS = {
+    "cause_specific_competing_hazard",
+    "deterministic_atom",
+    "empirical_discrete_atom",
+    "policy_clock",
+}
+PARENT_ATTRIBUTION_MODES = {
+    "independent_background",
+    "explicit_realized_parents",
+    "contribution_weighted_history",
+}
 
 
 @dataclass(frozen=True)
@@ -58,6 +69,8 @@ class MechanismSpec:
     calibration_fitter_id: str | None
     parameter_status: str
     notes: str | None = None
+    selection_semantics: str = "cause_specific_competing_hazard"
+    parent_attribution_mode: str = "explicit_realized_parents"
 
     @property
     def is_root(self) -> bool:
@@ -184,6 +197,53 @@ def _parse_mechanism(item: Any, domain: str) -> MechanismSpec:
         raise ValueError(
             f"Policy-defined mechanism {mechanism_id} must not declare an empirical fitter"
         )
+    temporal_family = _nonempty_string(
+        item.get("temporal_model_family"), "temporal_model_family"
+    )
+    if temporal_family in {"scheduled_time", "deterministic_delay"}:
+        default_selection = "deterministic_atom"
+    elif temporal_family == "empirical_delay":
+        default_selection = "empirical_discrete_atom"
+    elif temporal_family == "exponential_backoff":
+        default_selection = "policy_clock"
+    else:
+        default_selection = "cause_specific_competing_hazard"
+    selection_semantics = str(
+        item.get("selection_semantics", default_selection)
+    )
+    if selection_semantics not in SELECTION_SEMANTICS:
+        raise ValueError(f"Unsupported selection semantics: {selection_semantics}")
+    expected_selection_by_family = {
+        "scheduled_time": "deterministic_atom",
+        "deterministic_delay": "deterministic_atom",
+        "empirical_delay": "empirical_discrete_atom",
+        "exponential_backoff": "policy_clock",
+        "conditional_lognormal": "cause_specific_competing_hazard",
+        "conditional_gamma": "cause_specific_competing_hazard",
+        "conditional_weibull": "cause_specific_competing_hazard",
+        "exponential_arrival": "cause_specific_competing_hazard",
+        "piecewise_exponential_hazard": "cause_specific_competing_hazard",
+    }
+    expected_selection = expected_selection_by_family.get(temporal_family)
+    if expected_selection and selection_semantics != expected_selection:
+        raise ValueError(
+            f"Mechanism {mechanism_id} uses {selection_semantics} for "
+            f"{temporal_family}, expected {expected_selection}"
+        )
+    default_parent_attribution = (
+        "independent_background" if not source_types else "explicit_realized_parents"
+    )
+    parent_attribution_mode = str(
+        item.get("parent_attribution_mode", default_parent_attribution)
+    )
+    if parent_attribution_mode not in PARENT_ATTRIBUTION_MODES:
+        raise ValueError(
+            f"Unsupported parent attribution mode: {parent_attribution_mode}"
+        )
+    if not source_types and parent_attribution_mode != "independent_background":
+        raise ValueError(
+            f"Root mechanism {mechanism_id} must use independent_background attribution"
+        )
     return MechanismSpec(
         mechanism_id=mechanism_id,
         domain=domain,
@@ -194,9 +254,7 @@ def _parse_mechanism(item: Any, domain: str) -> MechanismSpec:
             item.get("required_context_relation_type_ids", []),
             "required_context_relation_type_ids",
         ),
-        temporal_model_family=_nonempty_string(
-            item.get("temporal_model_family"), "temporal_model_family"
-        ),
+        temporal_model_family=temporal_family,
         generation_temporal_model_ref=_nonempty_string(
             item.get("generation_temporal_model_ref"),
             "generation_temporal_model_ref",
@@ -207,6 +265,8 @@ def _parse_mechanism(item: Any, domain: str) -> MechanismSpec:
         calibration_fitter_id=fitter_id,
         parameter_status=parameter_status,
         notes=(str(item["notes"]) if item.get("notes") is not None else None),
+        selection_semantics=selection_semantics,
+        parent_attribution_mode=parent_attribution_mode,
     )
 
 

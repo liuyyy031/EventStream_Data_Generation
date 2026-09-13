@@ -67,6 +67,39 @@ class EventParticipant:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class StatePredicateEvidence:
+    """One state condition actually evaluated by a generation rule."""
+
+    subject_entity_id: Optional[str]
+    state_path: str
+    operator: str
+    expected: Any
+    actual: Any
+    passed: bool
+
+    def to_dict(self) -> Dict[str, Any]:
+        return _jsonable(asdict(self))
+
+
+@dataclass
+class ContextEvidence:
+    """Auditable context facts used by a candidate or event relation.
+
+    A context relation is evidence for a rule precondition, not automatically
+    evidence of event causality.  The domain mechanism remains responsible for
+    declaring what the checked relation and state predicates mean.
+    """
+
+    context_relation_ids: List[str] = field(default_factory=list)
+    entity_ids: List[str] = field(default_factory=list)
+    evaluated_at_offset_seconds: Optional[float] = None
+    state_predicates: List[StatePredicateEvidence] = field(default_factory=list)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return _jsonable(asdict(self))
+
+
 @dataclass
 class TemporalExtent:
     occurrence_start_offset_seconds: float
@@ -134,7 +167,52 @@ class EventRelation:
     temporal_link: TemporalLink
     status: str = "generated_ground_truth"
     mechanism_group_id: Optional[str] = None
+    context_evidence: ContextEvidence = field(default_factory=ContextEvidence)
     attributes: Dict[str, Any] = field(default_factory=dict)
+    provenance: Dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> Dict[str, Any]:
+        return _jsonable(asdict(self))
+
+
+@dataclass
+class RiskAlternativeEvidence:
+    """One eligible candidate in a pre-event competing-risk set."""
+
+    candidate_id: str
+    mechanism_id: str
+    target_event_type_id: str
+    participant_entity_ids: List[str]
+    parent_event_ids: List[str]
+    temporal_model_ref: str
+    scheduled_time: Optional[float]
+    clock_measure: Dict[str, Any]
+    eligible: bool = True
+    candidate_probability_given_time: Optional[float] = None
+
+    def to_dict(self) -> Dict[str, Any]:
+        return _jsonable(asdict(self))
+
+
+@dataclass
+class RiskSetRecord:
+    """Auditable time--type--entity choice made by the scheduler.
+
+    Continuous stochastic clocks use cause-specific hazards.  Deterministic,
+    empirical-discrete, and policy clocks are represented as atoms instead of
+    being assigned a fictitious continuous probability density.
+    """
+
+    risk_set_id: str
+    episode_id: str
+    evaluated_at_offset_seconds: float
+    selected_candidate_id: str
+    selected_event_id: str
+    selection_mode: str
+    alternatives: List[RiskAlternativeEvidence]
+    factorization: Dict[str, Any] = field(default_factory=dict)
+    parent_attribution: Dict[str, Any] = field(default_factory=dict)
+    tie_break: Dict[str, Any] = field(default_factory=dict)
     provenance: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
@@ -155,6 +233,7 @@ class Candidate:
     combination: str = "single"
     phase_priority: int = 20
     domain_priority: int = 0
+    context_evidence: ContextEvidence = field(default_factory=ContextEvidence)
     attributes: Dict[str, Any] = field(default_factory=dict)
     provenance: Dict[str, Any] = field(default_factory=dict)
     status: CandidateStatus = CandidateStatus.SCHEDULED
@@ -170,6 +249,8 @@ class Candidate:
     superseded_by_event_id: Optional[str] = None
     censored_at: Optional[float] = None
     fired_event_id: Optional[str] = None
+    risk_set_id: Optional[str] = None
+    selection_evidence: Dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> Dict[str, Any]:
         return _jsonable(asdict(self))
@@ -187,8 +268,10 @@ class EpisodeResult:
     events: List[EventRecord]
     event_relations: List[EventRelation]
     candidates: List[Candidate]
+    risk_sets: List[RiskSetRecord]
     final_state: Dict[str, Any]
     termination_reason: str
+    context_attributes: Dict[str, Any] = field(default_factory=dict)
     episode_attributes: Dict[str, Any] = field(default_factory=dict)
     validation: Dict[str, Any] = field(default_factory=dict)
 
@@ -207,6 +290,7 @@ class EpisodeResult:
                 "events": len(self.events),
                 "event_relations": len(self.event_relations),
                 "candidates": len(self.candidates),
+                "risk_sets": len(self.risk_sets),
             },
             "validation": self.validation,
         }

@@ -32,7 +32,13 @@
           "evidence_policy": {"type": "string", "minLength": 1},
           "calibration_fitter_id": {"type": ["string", "null"]},
           "parameter_status": {"type": "string", "minLength": 1},
-          "notes": {"type": "string"}
+          "notes": {"type": "string"},
+          "selection_semantics": {
+            "enum": ["cause_specific_competing_hazard", "deterministic_atom", "empirical_discrete_atom", "policy_clock"]
+          },
+          "parent_attribution_mode": {
+            "enum": ["independent_background", "explicit_realized_parents", "contribution_weighted_history"]
+          }
         },
         "additionalProperties": false
       }

@@ -4,12 +4,12 @@ Generic OpenAI-compatible LLM client used by the data-generation pipeline.
 Configuration is read from environment variables:
 
     LLM_API_KEY    (required)  API key (sent as `Authorization: Bearer ...`).
-    LLM_BASE_URL   (optional)  Default: https://api.openai.com/v1
-    LLM_MODEL      (optional)  Default: gpt-4o-mini
+    LLM_BASE_URL   (optional)  Default: https://api.deepseek.com
+    LLM_MODEL      (optional)  Default: deepseek-v4-flash
 
+The process automatically loads a ``.env`` file before reading these values.
 Any provider that exposes an OpenAI-style ``/chat/completions`` endpoint can
-be plugged in by setting ``LLM_BASE_URL`` (e.g. OpenAI, OpenRouter, DeepSeek,
-Together AI, vLLM, Ollama, etc.).
+be plugged in by setting ``LLM_BASE_URL``.
 """
 
 from __future__ import annotations
@@ -24,11 +24,10 @@ from typing import Any, Dict, List, Optional
 import requests
 from dotenv import load_dotenv
 
+
 load_dotenv()
 
-MY_KEY = os.getenv("LLM_API_KEY")
-# DEFAULT_BASE_URL = "https://api.openai.com/v1"
-# DEFAULT_MODEL = "gpt-4o-mini"
+
 DEFAULT_BASE_URL = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-v4-flash"
 DEFAULT_TIMEOUT = 120
@@ -40,7 +39,7 @@ class LLMClient:
 
     def __init__(
         self,
-        api_key: Optional[str] = MY_KEY,
+        api_key: Optional[str] = None,
         base_url: Optional[str] = None,
         model: Optional[str] = None,
         timeout: int = DEFAULT_TIMEOUT,
@@ -49,8 +48,8 @@ class LLMClient:
         self.api_key = api_key or os.environ.get("LLM_API_KEY")
         if not self.api_key:
             raise RuntimeError(
-                "LLM_API_KEY is not set. Export it before running, e.g.:\n"
-                "  export LLM_API_KEY=<your_api_key>"
+                "LLM_API_KEY is not set. Put it in the server .env file "
+                "or provide it through the process environment."
             )
 
         self.base_url = (base_url or os.environ.get("LLM_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
@@ -177,32 +176,23 @@ class LLMClient:
             "Content-Type": "application/json",
         }
         if self.model.startswith("deepseek-v4-"):
-            payload["thinking"] = {
-                "type": "disabled"
-            }
+            payload["thinking"] = {"type": "disabled"}
 
         last_err: Optional[Exception] = None
         for attempt in range(self.max_retries):
             try:
                 resp = requests.post(url, headers=headers, json=payload, timeout=self.timeout)
-                '''if resp.status_code == 200:
-                    data = resp.json()
-                    return data["choices"][0]["message"]["content"]'''
-                
                 if resp.status_code == 200:
                     data = resp.json()
-
                     content = data["choices"][0]["message"].get("content")
-
                     if content and content.strip():
                         return content
-
                     last_err = RuntimeError(
-                        f"HTTP 200 but model returned empty content: "
+                        "HTTP 200 but model returned empty content: "
                         f"{json.dumps(data, ensure_ascii=False)[:1000]}"
                     )
 
-                if resp.status_code in (408, 429) or 500 <= resp.status_code < 600:
+                elif resp.status_code in (408, 429) or 500 <= resp.status_code < 600:
                     last_err = RuntimeError(
                         f"HTTP {resp.status_code}: {resp.text[:300]}"
                     )

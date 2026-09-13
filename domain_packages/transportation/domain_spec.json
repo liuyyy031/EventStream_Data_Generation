@@ -1,0 +1,31 @@
+{
+  "domain": "transportation",
+  "implementation_status": "event_generation_implemented_with_synthetic_priors",
+  "entity_type_ids": [
+    "transportation.region",
+    "transportation.road.segment"
+  ],
+  "context_relation_type_ids": [
+    "transportation.road.downstream_of"
+  ],
+  "topology_contract": {
+    "representation": "sparse_typed_relation_layers",
+    "global_connectivity": "per_layer",
+    "n_ary_relation_policy": "reify_as_typed_entity",
+    "spatial_coordinates_required": false,
+    "relation_layers": [
+      {
+        "relation_type_id": "transportation.road.downstream_of",
+        "family": "constrained_degree_weighted_block",
+        "source_type_ids": ["transportation.road.segment"],
+        "target_type_ids": ["transportation.road.segment"],
+        "directed": true,
+        "allow_cycles": true,
+        "ensure_weak_connectivity": true,
+        "temporal_validity_allowed": false,
+        "attribute_builder_id": "transportation.downstream_relation.v1"
+      }
+    ],
+    "parameter_status": "sampled_synthetic_profile_pending_reference_fit"
+  }
+}
