@@ -511,7 +511,9 @@ def _validate_context_evidence(
 
 
 def validate_text_alignment(
-    result: EpisodeResult, payload: Dict[str, Any]
+    result: EpisodeResult,
+    payload: Dict[str, Any],
+    domain_catalog: Dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     errors: List[str] = []
     if payload.get("episode_id") != result.episode_id:
@@ -528,6 +530,13 @@ def validate_text_alignment(
         claims = []
     event_ids = {event.event_id for event in result.events}
     relation_ids = {relation.relation_id for relation in result.event_relations}
+    relation_by_id = {
+        relation.relation_id: relation for relation in result.event_relations
+    }
+    catalog_relation_by_type = {
+        item["relation_type_id"]: item
+        for item in (domain_catalog or {}).get("event_relation_types", [])
+    }
     covered_events: set[str] = set()
     covered_relations: set[str] = set()
     for claim in claims:
@@ -535,8 +544,11 @@ def validate_text_alignment(
             errors.append("Text alignment contains a non-object claim")
             continue
         sentence_index = claim.get("sentence_index")
+        sentence = None
         if not isinstance(sentence_index, int) or not 0 <= sentence_index < len(sentences):
             errors.append("Text alignment claim has an invalid sentence_index")
+        else:
+            sentence = sentences[sentence_index]
         claim_events = set(claim.get("event_ids", []))
         claim_relations = set(claim.get("relation_ids", []))
         if not claim_events <= event_ids:
@@ -545,10 +557,79 @@ def validate_text_alignment(
             errors.append("Text alignment claim references an unknown relation")
         if not claim_events and not claim_relations:
             errors.append("Text alignment claim has no structured evidence target")
+        assertions = claim.get("relation_assertions", [])
+        if not isinstance(assertions, list) or any(
+            not isinstance(assertion, dict) for assertion in assertions
+        ):
+            errors.append("Text alignment relation_assertions must be a list of objects")
+            assertions = []
+        assertion_by_relation_id = {
+            assertion.get("relation_id"): assertion
+            for assertion in assertions
+            if assertion.get("relation_id")
+        }
+        if set(assertion_by_relation_id) != claim_relations:
+            errors.append(
+                "Text alignment relation assertions do not match the claimed relations"
+            )
+        for relation_id in claim_relations:
+            relation = relation_by_id.get(relation_id)
+            assertion = assertion_by_relation_id.get(relation_id)
+            if relation is None or assertion is None:
+                continue
+            asserted_class = assertion.get("asserted_relation_class")
+            surface_predicate = assertion.get("surface_predicate")
+            if asserted_class != relation.relation_class:
+                errors.append(
+                    f"Text claim for relation {relation_id} asserts class "
+                    f"{asserted_class}, expected {relation.relation_class}"
+                )
+            if not isinstance(surface_predicate, str) or not surface_predicate.strip():
+                errors.append(
+                    f"Text claim for relation {relation_id} lacks a surface predicate"
+                )
+            elif sentence is not None and surface_predicate not in sentence:
+                errors.append(
+                    f"Text claim for relation {relation_id} does not use its declared "
+                    "surface predicate"
+                )
+            if domain_catalog is not None:
+                relation_definition = catalog_relation_by_type.get(
+                    relation.relation_type_id, {}
+                )
+                expected_rendering = relation_definition.get("text_rendering")
+                if not isinstance(expected_rendering, dict):
+                    errors.append(
+                        f"Catalog relation type {relation.relation_type_id} lacks "
+                        "a deterministic text rendering"
+                    )
+                    continue
+                expected_class = expected_rendering.get(
+                    "asserted_relation_class"
+                )
+                expected_predicate = expected_rendering.get("surface_predicate")
+                if expected_class != relation.relation_class:
+                    errors.append(
+                        f"Catalog text rendering for {relation.relation_type_id} "
+                        f"asserts class {expected_class}, expected "
+                        f"{relation.relation_class}"
+                    )
+                if asserted_class != expected_class:
+                    errors.append(
+                        f"Text claim for relation {relation_id} does not preserve "
+                        "the catalog relation class"
+                    )
+                if surface_predicate != expected_predicate:
+                    errors.append(
+                        f"Text claim for relation {relation_id} does not preserve "
+                        "the catalog surface predicate"
+                    )
         covered_events.update(claim_events)
         covered_relations.update(claim_relations)
     if covered_events != event_ids:
         errors.append("Text alignment does not cover every emitted event")
     if covered_relations != relation_ids:
         errors.append("Text alignment does not cover every emitted event relation")
+    if sentences and payload.get("text") != " ".join(sentences):
+        errors.append("Text alignment text does not equal its joined sentences")
     return {"passed": not errors, "errors": errors}

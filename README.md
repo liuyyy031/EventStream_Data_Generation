@@ -1,5 +1,31 @@
 # Data Generation
 
+## Current domain-neutral generation core
+
+The current development path is documented in
+[`GENERATION_CORE_DESIGN.md`](GENERATION_CORE_DESIGN.md). It generates an
+auditable sparse context graph, event records, realized event relations,
+complete candidate lifecycles, and a pre-event competing-risk set for every
+fired event. Run it from the repository root with:
+
+```bash
+python data_generation/run_data_generation.py \
+    --episode-count 10 \
+    --nodes-per-context 1000 \
+    --output-dir data_generation/output_multidomain_transportation
+```
+
+`risk_sets.jsonl` records the shared time--type--entity decision evidence.
+Healthcare and distributed-systems packages currently contain compileable
+structural contracts only. The pipeline described below is the frozen original
+ST-Bench generation path and remains available as a reproducible baseline.
+
+For server-side LLM semantic review, put `LLM_API_KEY` and, when needed,
+`LLM_BASE_URL` in the server `.env` file, then add
+`--judge-mode llm --judge-model <model-id>`. The model argument is mandatory
+in LLM mode; local development uses `--judge-mode none` and makes no API
+request.
+
 Pipeline used to (re)generate [`data/ST-Bench`](../data/ST-Bench).
 
 ## Pipeline
@@ -27,12 +53,12 @@ Stage 5  Convert to text / image variants
 `Stage 1` and the reasoning part of `Stage 2` need an LLM API. All LLM calls
 go through [`llm_client.py`](llm_client.py), which speaks the
 OpenAI-compatible chat-completions protocol. Configure it via environment
-variables:
+variables in the repository `.env` file, which is loaded automatically:
 
-```bash
-export LLM_API_KEY=<your_api_key>                       # required
-export LLM_BASE_URL=https://api.openai.com/v1           # optional, default shown
-export LLM_MODEL=gpt-4o-mini                            # optional, default shown
+```dotenv
+LLM_API_KEY=<your_api_key>
+LLM_BASE_URL=https://api.deepseek.com
+LLM_MODEL=deepseek-v4-flash
 ```
 
 Any provider exposing an OpenAI-style `/chat/completions` endpoint (OpenAI,

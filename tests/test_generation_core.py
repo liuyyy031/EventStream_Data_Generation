@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import copy
 import random
 import json
 import sys
@@ -18,6 +19,7 @@ from domain_packages.transportation import (  # noqa: E402
 )
 from domain_packages.transportation.package import (  # noqa: E402
     COLLISION,
+    CONGESTION,
     HEAVY_RAIN_START,
     ROAD_CLOSURE_START,
 )
@@ -51,6 +53,11 @@ from generation_core.reference_data import (  # noqa: E402
 )
 from generation_core.pipeline import GenerationPipeline  # noqa: E402
 from generation_core.scheduler import SimulationEngine, _resolve_activation_time  # noqa: E402
+from generation_core.semantic_judge import (  # noqa: E402
+    LLMSemanticJudge,
+    SemanticJudgeResult,
+    _build_prompt,
+)
 from generation_core.temporal import (  # noqa: E402
     ConditionalGammaModel,
     ConditionalWeibullModel,
@@ -58,6 +65,7 @@ from generation_core.temporal import (  # noqa: E402
     PiecewiseExponentialHazardModel,
     TemporalModelRegistry,
 )
+from generation_core.validation import validate_text_alignment  # noqa: E402
 from generation_core.topology import (  # noqa: E402
     ContextRelationIndex,
     RelationLayerSpec,
@@ -537,7 +545,213 @@ class TemporalModelTest(unittest.TestCase):
             _resolve_activation_time(spec, {"parent": parent})
 
 
+class SemanticJudgeTest(unittest.TestCase):
+    def test_prompt_defines_root_and_cancelled_candidate_semantics(self) -> None:
+        package = TransportationPackage(
+            {
+                "nodes_per_context": 8,
+                "context_count": 1,
+                "duration_seconds": 1200.0,
+                "root_rate_per_hour": 10.0,
+                "scenario_weights": {"accident_propagation": 1.0},
+            }
+        )
+        result = SimulationEngine(
+            package, build_transportation_temporal_models(), max_events=32
+        ).run(0, 41)
+        prompt = _build_prompt(
+            result,
+            package.render_episode_text(result),
+            package.catalog(),
+            reason_limit=5,
+        )
+        payload = json.loads(prompt.split("\nDATA:\n", 1)[1])
+        root_contract = payload["review_contract"]["root_event_semantics"]
+        self.assertFalse(root_contract["entity_temporal_primacy"])
+        self.assertTrue(root_contract["prior_events_on_the_same_entity_are_allowed"])
+        cancellation_contract = payload["review_contract"][
+            "cancelled_candidate_semantics"
+        ]
+        self.assertTrue(cancellation_contract["does_not_invalidate_parent_event"])
+        root_mechanism = next(
+            item
+            for item in payload["mechanism_catalog"]
+            if item["mechanism_id"]
+            == "transportation.exogenous_incident_arrival"
+        )
+        self.assertIn("not the first event", root_mechanism["notes"])
+
+    def test_llm_protocol_retries_invalid_json_without_regenerating(self) -> None:
+        package = TransportationPackage(
+            {
+                "nodes_per_context": 8,
+                "context_count": 1,
+                "duration_seconds": 1200.0,
+                "root_rate_per_hour": 10.0,
+            }
+        )
+        result = SimulationEngine(
+            package, build_transportation_temporal_models(), max_events=32
+        ).run(0, 41)
+        text_alignment = package.render_episode_text(result)
+        client = _ResponseClient(
+            [
+                "not-json",
+                json.dumps(
+                    {
+                        "passed": True,
+                        "reasons": ["The supplied records are coherent."],
+                        "flagged_record_ids": [],
+                    }
+                ),
+            ]
+        )
+        judged = LLMSemanticJudge(
+            client, protocol_max_attempts=2
+        ).evaluate(result, text_alignment, package.catalog())
+        self.assertTrue(judged.passed)
+        self.assertEqual(judged.protocol_attempt_count, 2)
+        self.assertEqual(len(judged.protocol_errors), 1)
+
+
 class SchedulerTest(unittest.TestCase):
+    def test_later_independent_root_on_congested_entity_is_a_valid_chain(self) -> None:
+        base_seed = 20260915
+        episode_index = 80
+        episode_seed = base_seed + episode_index * 104729
+        package = TransportationPackage(
+            {
+                "base_seed": base_seed,
+                "context_count": 4,
+                "nodes_per_context": 1000,
+                "duration_seconds": 7200.0,
+                "root_rate_per_hour": 1.5,
+                "max_root_events": 3,
+                "max_propagation_depth": 4,
+                "scenario_weights": {
+                    "accident_propagation": 0.35,
+                    "weather_disruption": 0.25,
+                    "planned_closure": 0.2,
+                    "compound_weather_accident": 0.2,
+                },
+            }
+        )
+        result = SimulationEngine(
+            package, build_transportation_temporal_models(), max_events=512
+        ).run(episode_index, episode_seed)
+        self.assertTrue(result.validation["passed"])
+        events_by_id = {event.event_id: event for event in result.events}
+        qualifying_roots = []
+        for event in result.events:
+            if event.event_type_id != COLLISION or event.event_role != "root":
+                continue
+            road_id = event.participants[0].entity_id
+            event_time = event.temporal.occurrence_start_offset_seconds
+            earlier_congestion = any(
+                other.event_type_id == CONGESTION
+                and other.participants[0].entity_id == road_id
+                and other.temporal.occurrence_start_offset_seconds < event_time
+                for other in result.events
+            )
+            cancelled_child = any(
+                event.event_id in candidate.parent_event_ids
+                and candidate.target_event_type_id == CONGESTION
+                and candidate.status is CandidateStatus.CANCELLED
+                and candidate.terminal_reason == "target_road_is_not_normal"
+                for candidate in result.candidates
+            )
+            if earlier_congestion and cancelled_child:
+                qualifying_roots.append(event.event_id)
+        self.assertEqual(
+            qualifying_roots,
+            ["transport_episode_0000080_event_000020"],
+        )
+        self.assertIn(qualifying_roots[0], events_by_id)
+
+    def test_independent_root_remains_valid_on_an_already_affected_entity(self) -> None:
+        package = TransportationPackage(
+            {
+                "nodes_per_context": 8,
+                "context_count": 1,
+                "duration_seconds": 1200.0,
+                "scenario_weights": {"accident_propagation": 1.0},
+            }
+        )
+        context = package.create_episode_context(0, 71)
+        spec = package.seed_candidates(context, random.Random(71))[0]
+        road_id = spec.participants[0].entity_id
+        context.state["road_status"][road_id] = "congested"
+        candidate = Candidate(
+            candidate_id="root_candidate",
+            episode_id=context.episode_id,
+            mechanism_id=spec.mechanism_id,
+            target_event_type_id=spec.target_event_type_id,
+            parent_event_ids=list(spec.parent_event_ids),
+            participants=list(spec.participants),
+            activation_time=float(spec.activation_time or 0.0),
+            temporal_model_ref=spec.temporal_model_ref,
+            temporal_inputs=dict(spec.temporal_inputs),
+            combination=spec.combination,
+            attributes=dict(spec.attributes),
+            provenance=dict(spec.provenance),
+        )
+        decision = package.revalidate_candidate(candidate, context, {}, 100.0)
+        self.assertTrue(decision.valid)
+
+    def test_relation_text_semantics_are_deterministically_aligned(self) -> None:
+        package = TransportationPackage(
+            {
+                "nodes_per_context": 12,
+                "context_count": 1,
+                "duration_seconds": 7200.0,
+                "root_rate_per_hour": 10.0,
+                "scenario_weights": {"weather_disruption": 1.0},
+            }
+        )
+        result = SimulationEngine(
+            package, build_transportation_temporal_models(), max_events=32
+        ).run(0, 1)
+        statistical_relation = next(
+            relation
+            for relation in result.event_relations
+            if relation.relation_class == "statistical_influence"
+        )
+        text_alignment = package.render_episode_text(result)
+        self.assertTrue(
+            validate_text_alignment(
+                result, text_alignment, package.catalog()
+            )["passed"]
+        )
+        relation_claim = next(
+            claim
+            for claim in text_alignment["claims"]
+            if statistical_relation.relation_id in claim["relation_ids"]
+        )
+        assertion = relation_claim["relation_assertions"][0]
+        self.assertEqual(
+            assertion["asserted_relation_class"], "statistical_influence"
+        )
+        self.assertIn("statistically", assertion["surface_predicate"])
+        self.assertNotIn(
+            "induced",
+            text_alignment["sentences"][relation_claim["sentence_index"]],
+        )
+
+        tampered = copy.deepcopy(text_alignment)
+        tampered_claim = next(
+            claim
+            for claim in tampered["claims"]
+            if statistical_relation.relation_id in claim["relation_ids"]
+        )
+        tampered_claim["relation_assertions"][0][
+            "asserted_relation_class"
+        ] = "causal"
+        checked = validate_text_alignment(result, tampered, package.catalog())
+        self.assertFalse(checked["passed"])
+        self.assertTrue(
+            any("expected statistical_influence" in error for error in checked["errors"])
+        )
+
     def test_same_time_priority_revalidates_and_cancels_later_candidate(self) -> None:
         registry = TemporalModelRegistry([DeterministicDelayModel("test.delay", 5.0)])
         result = SimulationEngine(_PriorityDomain(), registry).run(0, 11)
@@ -795,6 +1009,24 @@ class SchedulerTest(unittest.TestCase):
             output,
         ).run()
         self.assertTrue(report["quality_report"]["passed"])
+        distribution = report["quality_report"][
+            "episode_event_count_distribution"
+        ]
+        self.assertEqual(distribution["summary"]["count"], 2)
+        self.assertEqual(
+            sum(bucket["count"] for bucket in distribution["buckets"]), 2
+        )
+        self.assertTrue(distribution["bucket_boundaries_are_reporting_only"])
+        manifest = json.loads(
+            (output / "manifest.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            manifest["configuration"]["output_directory"],
+            str(output.resolve()),
+        )
+        self.assertEqual(
+            manifest["output"]["resolved_directory"], str(output.resolve())
+        )
         for filename in (
                 "manifest.json",
                 "domain_catalog.json",
@@ -807,11 +1039,66 @@ class SchedulerTest(unittest.TestCase):
             "event_relations.jsonl",
                 "candidates.jsonl",
                 "risk_sets.jsonl",
+                "judge_results.jsonl",
                 "episode_texts.jsonl",
                 "validation.jsonl",
             "quality_report.json",
         ):
                 self.assertTrue((output / filename).is_file(), filename)
+
+    def test_pipeline_llm_rejection_regenerates_with_injected_judge(self) -> None:
+        package = TransportationPackage(
+            {
+                "nodes_per_context": 12,
+                "context_count": 1,
+                "duration_seconds": 1200.0,
+                "root_rate_per_hour": 10.0,
+            }
+        )
+        test_output_root = DATA_GENERATION / "test_runtime_output"
+        test_output_root.mkdir(exist_ok=True)
+        output = test_output_root / f"judge_{uuid.uuid4().hex}"
+        judge = _RejectOnceJudge()
+        report = GenerationPipeline(
+            package,
+            build_transportation_temporal_models(),
+            {
+                "seed": 19,
+                "episode_count": 2,
+                "max_events_per_episode": 32,
+                "semantic_judge": {
+                    "mode": "llm",
+                    "model": "fake-model",
+                    "base_url": "https://unit.test",
+                    "workers": 2,
+                    "max_generation_attempts": 2,
+                },
+            },
+            output,
+            semantic_judge=judge,
+        ).run()["quality_report"]
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["accepted_episode_count"], 2)
+        self.assertEqual(report["semantic_judged_episode_count"], 2)
+        self.assertEqual(report["semantic_judge_call_count"], 4)
+        self.assertEqual(report["semantic_rejection_count"], 2)
+        self.assertEqual(report["generation_retry_count"], 2)
+        self.assertEqual(report["judge_protocol_failure_count"], 0)
+        self.assertEqual(report["semantic_judge_base_url"], "https://unit.test")
+        manifest = json.loads(
+            (output / "manifest.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            manifest["semantic_judge"]["base_url"], "https://unit.test"
+        )
+        self.assertEqual(
+            manifest["configuration"]["semantic_judge"]["base_url"],
+            "https://unit.test",
+        )
+        self.assertEqual(
+            len((output / "judge_results.jsonl").read_text(encoding="utf-8").splitlines()),
+            4,
+        )
 
     def test_pipeline_quality_gate_rejects_administrative_truncation(self) -> None:
         package = TransportationPackage(
@@ -843,6 +1130,50 @@ class SchedulerTest(unittest.TestCase):
         ).lower()
         for token in ("transportation", "congestion", "road_segment", "bpr"):
             self.assertNotIn(token, payload)
+
+
+class _ResponseClient:
+    model = "fake-model"
+    base_url = "https://unit.test"
+
+    def __init__(self, responses):
+        self.responses = list(responses)
+
+    def complete(self, prompt, max_tokens=4096, temperature=1.0):
+        del prompt, max_tokens, temperature
+        return self.responses.pop(0)
+
+
+class _RejectOnceJudge:
+    def __init__(self):
+        self.calls = {}
+
+    def evaluate(self, result, text_alignment, domain_catalog):
+        del text_alignment, domain_catalog
+        count = self.calls.get(result.episode_id, 0)
+        self.calls[result.episode_id] = count + 1
+        if count == 0:
+            record_id = (
+                result.events[0].event_id
+                if result.events
+                else result.candidates[0].candidate_id
+            )
+            return SemanticJudgeResult(
+                outcome="semantic_rejected",
+                passed=False,
+                reasons=[f"Synthetic retry requested for {record_id}."],
+                flagged_record_ids=[record_id],
+                model_id="fake-model",
+                provider_base_url="https://unit.test",
+            )
+        return SemanticJudgeResult(
+            outcome="passed",
+            passed=True,
+            reasons=["The supplied records are coherent."],
+            flagged_record_ids=[],
+            model_id="fake-model",
+            provider_base_url="https://unit.test",
+        )
 
 
 class _PriorityDomain:

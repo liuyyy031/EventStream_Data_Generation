@@ -17,7 +17,8 @@
       "relation_semantics": "exogenous",
       "evidence_policy": "independent_root",
       "calibration_fitter_id": "core.exponential_rate_mle",
-      "parameter_status": "synthetic_prior_pending_empirical_fit"
+      "parameter_status": "synthetic_prior_pending_empirical_fit",
+      "notes": "Independent root means a parentless exogenous collision, not the first event on the affected road. It may occur after earlier events on that road; a derived congestion candidate may then be cancelled if the road state is no longer eligible."
     },
     {
       "mechanism_id": "transportation.incident_to_congestion",
@@ -34,7 +35,7 @@
       "evidence_policy": "rule_supported",
       "calibration_fitter_id": null,
       "parameter_status": "pending_reference_data",
-      "notes": "Fitter selection requires reference censoring and covariate coverage review."
+      "notes": "Fitter selection requires reference censoring and covariate coverage review. Cancellation because the target road is not normal is a valid non-occurrence of this derived congestion outcome and does not invalidate the collision parent."
     },
     {
       "mechanism_id": "transportation.weather_collision_joint_to_congestion",
@@ -103,7 +104,8 @@
       "relation_semantics": "exogenous",
       "evidence_policy": "independent_root",
       "calibration_fitter_id": "core.exponential_rate_mle",
-      "parameter_status": "synthetic_prior_pending_empirical_fit"
+      "parameter_status": "synthetic_prior_pending_empirical_fit",
+      "notes": "Independent root means a parentless exogenous weather occurrence, not temporal primacy over all earlier events in the affected region."
     },
     {
       "mechanism_id": "transportation.weather_clearance",

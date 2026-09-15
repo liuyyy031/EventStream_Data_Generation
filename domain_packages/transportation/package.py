@@ -53,6 +53,44 @@ HEAVY_RAIN_START = "transportation.weather.heavy_rain.start"
 HEAVY_RAIN_END = "transportation.weather.heavy_rain.end"
 ROAD_CLOSURE_START = "transportation.road.operation.closure.start"
 ROAD_CLOSURE_END = "transportation.road.operation.closure.end"
+WEATHER_STATISTICALLY_INFLUENCES_CONGESTION = (
+    "transportation.weather_statistically_influences_congestion"
+)
+
+RELATION_TEXT_RENDERINGS = {
+    "transportation.initiates_congestion": {
+        "surface_predicate": "causally initiated",
+        "asserted_relation_class": "causal",
+    },
+    "transportation.propagates_downstream": {
+        "surface_predicate": "causally propagated to",
+        "asserted_relation_class": "causal",
+    },
+    "transportation.transitions_to_recovery": {
+        "surface_predicate": "was followed by the state transition to",
+        "asserted_relation_class": "transition",
+    },
+    WEATHER_STATISTICALLY_INFLUENCES_CONGESTION: {
+        "surface_predicate": "statistically increased the likelihood of",
+        "asserted_relation_class": "statistical_influence",
+    },
+    "transportation.weather_contributes_to_collision": {
+        "surface_predicate": "statistically increased the likelihood of",
+        "asserted_relation_class": "statistical_influence",
+    },
+    "transportation.weather_contributes_to_congestion": {
+        "surface_predicate": "statistically increased the likelihood of",
+        "asserted_relation_class": "statistical_influence",
+    },
+    "transportation.weather_clears": {
+        "surface_predicate": "was followed by the state transition to",
+        "asserted_relation_class": "transition",
+    },
+    "transportation.closure_reopens": {
+        "surface_predicate": "was followed by the state transition to",
+        "asserted_relation_class": "transition",
+    },
+}
 
 EVENT_TYPE_IDS = (
     COLLISION,
@@ -245,34 +283,74 @@ class TransportationPackage:
                 {
                     "relation_type_id": "transportation.initiates_congestion",
                     "relation_class": "causal",
+                    "text_rendering": dict(
+                        RELATION_TEXT_RENDERINGS[
+                            "transportation.initiates_congestion"
+                        ]
+                    ),
                 },
                 {
                     "relation_type_id": "transportation.propagates_downstream",
                     "relation_class": "causal",
+                    "text_rendering": dict(
+                        RELATION_TEXT_RENDERINGS[
+                            "transportation.propagates_downstream"
+                        ]
+                    ),
                 },
                 {
                     "relation_type_id": "transportation.transitions_to_recovery",
                     "relation_class": "transition",
+                    "text_rendering": dict(
+                        RELATION_TEXT_RENDERINGS[
+                            "transportation.transitions_to_recovery"
+                        ]
+                    ),
                 },
                 {
-                    "relation_type_id": "transportation.weather_induces_congestion",
+                    "relation_type_id": WEATHER_STATISTICALLY_INFLUENCES_CONGESTION,
                     "relation_class": "statistical_influence",
+                    "text_rendering": dict(
+                        RELATION_TEXT_RENDERINGS[
+                            WEATHER_STATISTICALLY_INFLUENCES_CONGESTION
+                        ]
+                    ),
                 },
                 {
                     "relation_type_id": "transportation.weather_contributes_to_collision",
                     "relation_class": "statistical_influence",
+                    "text_rendering": dict(
+                        RELATION_TEXT_RENDERINGS[
+                            "transportation.weather_contributes_to_collision"
+                        ]
+                    ),
                 },
                 {
                     "relation_type_id": "transportation.weather_contributes_to_congestion",
                     "relation_class": "statistical_influence",
+                    "text_rendering": dict(
+                        RELATION_TEXT_RENDERINGS[
+                            "transportation.weather_contributes_to_congestion"
+                        ]
+                    ),
                 },
                 {
                     "relation_type_id": "transportation.weather_clears",
                     "relation_class": "transition",
+                    "text_rendering": dict(
+                        RELATION_TEXT_RENDERINGS[
+                            "transportation.weather_clears"
+                        ]
+                    ),
                 },
                 {
                     "relation_type_id": "transportation.closure_reopens",
                     "relation_class": "transition",
+                    "text_rendering": dict(
+                        RELATION_TEXT_RENDERINGS[
+                            "transportation.closure_reopens"
+                        ]
+                    ),
                 },
             ],
             "mechanisms": self.mechanism_registry.descriptors(),
@@ -287,16 +365,6 @@ class TransportationPackage:
             HEAVY_RAIN_END: "heavy rain clearance",
             ROAD_CLOSURE_START: "a planned road closure",
             ROAD_CLOSURE_END: "the planned road reopening",
-        }
-        relation_labels = {
-            "transportation.initiates_congestion": "initiated",
-            "transportation.propagates_downstream": "propagated to",
-            "transportation.transitions_to_recovery": "transitioned to",
-            "transportation.weather_induces_congestion": "induced",
-            "transportation.weather_contributes_to_collision": "contributed to",
-            "transportation.weather_contributes_to_congestion": "jointly contributed to",
-            "transportation.weather_clears": "ended with",
-            "transportation.closure_reopens": "ended with",
         }
         sentences: List[str] = []
         claims: List[Dict[str, Any]] = []
@@ -330,9 +398,11 @@ class TransportationPackage:
                 }
             )
         for relation in result.event_relations:
+            text_rendering = RELATION_TEXT_RENDERINGS[relation.relation_type_id]
+            surface_predicate = text_rendering["surface_predicate"]
             sentence = (
                 f"Generated rule {relation.rule_id} states that event "
-                f"{relation.source_event_id} {relation_labels[relation.relation_type_id]} "
+                f"{relation.source_event_id} {surface_predicate} "
                 f"event {relation.target_event_id}, with an occurrence-start lag of "
                 f"{relation.temporal_link.lag_seconds:.3f} seconds."
             )
@@ -346,6 +416,15 @@ class TransportationPackage:
                         relation.target_event_id,
                     ],
                     "relation_ids": [relation.relation_id],
+                    "relation_assertions": [
+                        {
+                            "relation_id": relation.relation_id,
+                            "asserted_relation_class": text_rendering[
+                                "asserted_relation_class"
+                            ],
+                            "surface_predicate": surface_predicate,
+                        }
+                    ],
                     "evidence_fields": [
                         "rule_id",
                         "relation_type_id",
@@ -924,7 +1003,7 @@ class TransportationPackage:
         elif kind == "weather_congestion":
             relation_class, relation_type = (
                 "statistical_influence",
-                "transportation.weather_induces_congestion",
+                WEATHER_STATISTICALLY_INFLUENCES_CONGESTION,
             )
         elif kind == "weather_conditioned_collision":
             relation_class, relation_type = (

@@ -149,6 +149,30 @@ def _build_prompt(
         if item.get("mechanism_id") in used_mechanisms
     ]
     payload = {
+        "review_contract": {
+            "root_event_semantics": {
+                "definition": "an event emitted by a mechanism with no event parents",
+                "entity_temporal_primacy": False,
+                "must_explain_preexisting_entity_state": False,
+                "prior_events_on_the_same_entity_are_allowed": True,
+                "interpretation": (
+                    "root means parentless in the generated event graph, not the "
+                    "first event ever observed on its participant entity"
+                ),
+            },
+            "cancelled_candidate_semantics": {
+                "definition": (
+                    "a potential derived event that did not occur because its "
+                    "eligibility or state precondition no longer held"
+                ),
+                "does_not_invalidate_parent_event": True,
+                "does_not_assert_target_event_occurred": True,
+            },
+            "review_boundary": (
+                "Do not invent entity-state or temporal-precedence constraints "
+                "that are absent from the mechanism catalog and supplied evidence."
+            ),
+        },
         "episode": result.episode_record(),
         "context_summary": {
             "context_id": result.context_id,
@@ -221,6 +245,15 @@ def _build_prompt(
     return (
         "You are reviewing one synthetic event-sequence episode for semantic and "
         "mechanism coherence. The deterministic contract has already been checked. "
+        "Treat review_contract in DATA as binding definitions. In particular, a "
+        "root event is parentless in the event graph; it is not necessarily the "
+        "first event on its participant entity and need not explain an entity state "
+        "that already existed. A later independent root event on an already affected "
+        "entity is not a contradiction when its mechanism permits it. If a child "
+        "candidate is cancelled because its target state is no longer eligible, that "
+        "is a coherent non-occurrence and does not invalidate its parent event or an "
+        "earlier independent chain. Do not invent preconditions that are absent from "
+        "the mechanism catalog and supplied evidence. "
         "Reject only concrete contradictions in the supplied records: impossible "
         "event ordering, a child unsupported by its declared mechanism, incompatible "
         "participant roles, a relation whose meaning conflicts with its source and "

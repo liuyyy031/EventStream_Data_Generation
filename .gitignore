@@ -1,3 +1,5 @@
 __pycache__/
 .env
 batch_output/
+output*
+test_runtime_output/

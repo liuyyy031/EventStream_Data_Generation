@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
+from statistics import mean, median
 from typing import Any, Dict, List, Tuple
 
 from .domain import DomainPackage
@@ -15,6 +17,14 @@ from .semantic_judge import SemanticJudge, SemanticJudgeResult
 from .temporal import TemporalModelRegistry
 from .validation import validate_text_alignment
 from .writer import DatasetWriter
+
+
+DEFAULT_EVENT_COUNT_BUCKETS = (
+    {"label": "empty", "min_events": 0, "max_events": 0},
+    {"label": "short", "min_events": 1, "max_events": 4},
+    {"label": "medium", "min_events": 5, "max_events": 12},
+    {"label": "long", "min_events": 13, "max_events": None},
+)
 
 
 class GenerationPipeline:
@@ -29,7 +39,8 @@ class GenerationPipeline:
         self.domain_package = domain_package
         self.temporal_models = temporal_models
         self.config = dict(config)
-        self.output_dir = _unique_output_directory(Path(output_dir))
+        self.requested_output_dir = Path(output_dir)
+        self.output_dir = _unique_output_directory(self.requested_output_dir)
         self.semantic_judge = semantic_judge
 
     def run(self) -> Dict[str, Any]:
@@ -48,17 +59,51 @@ class GenerationPipeline:
             raise ValueError("semantic_judge.mode must be 'none' or 'llm'")
         if judge_mode == "llm" and self.semantic_judge is None:
             raise ValueError("LLM judge mode requires an injected semantic judge")
+        quality_reporting = dict(self.config.get("quality_reporting", {}))
+        event_count_buckets = _normalize_event_count_buckets(
+            quality_reporting.get(
+                "event_count_buckets", DEFAULT_EVENT_COUNT_BUCKETS
+            )
+        )
         engine = SimulationEngine(
             self.domain_package, self.temporal_models, max_events=max_events
         )
         domain_catalog = self.domain_package.catalog()
+        resolved_judge_model = (
+            getattr(self.semantic_judge, "model_id", None)
+            or judge_config.get("model")
+        )
+        resolved_judge_base_url = (
+            getattr(self.semantic_judge, "provider_base_url", None)
+            or judge_config.get("base_url")
+        )
+        manifest_config = deepcopy(self.config)
+        manifest_config["output_directory"] = str(self.output_dir.resolve())
+        manifest_judge_config = dict(manifest_config.get("semantic_judge", {}))
+        manifest_judge_config["model"] = resolved_judge_model
+        manifest_judge_config["base_url"] = resolved_judge_base_url
+        manifest_config["semantic_judge"] = manifest_judge_config
+        manifest_quality_reporting = dict(
+            manifest_config.get("quality_reporting", {})
+        )
+        manifest_quality_reporting["event_count_buckets"] = deepcopy(
+            event_count_buckets
+        )
+        manifest_config["quality_reporting"] = manifest_quality_reporting
         manifest = {
             "schema_version": "event-stream-contract-v2",
-            "generator_version": "multidomain-generation-core-v0.4.0",
+            "generator_version": "multidomain-generation-core-v0.4.2",
             "domain": self.domain_package.domain_id,
             "seed": base_seed,
             "created_at": datetime.now().astimezone().isoformat(),
-            "configuration": self.config,
+            "configuration": manifest_config,
+            "output": {
+                "requested_directory": str(self.requested_output_dir),
+                "resolved_directory": str(self.output_dir.resolve()),
+                "automatically_renamed": (
+                    self.output_dir != self.requested_output_dir
+                ),
+            },
             "contract_notes": {
                 "primary_validity_target": "mechanism_coherence_and_auditable_event_chains",
                 "context_topology_is_not_event_parenthood": True,
@@ -77,8 +122,8 @@ class GenerationPipeline:
             },
             "semantic_judge": {
                 "mode": judge_mode,
-                "model": judge_config.get("model"),
-                "base_url": judge_config.get("base_url"),
+                "model": resolved_judge_model,
+                "base_url": resolved_judge_base_url,
                 "workers": judge_workers,
                 "max_generation_attempts": max_generation_attempts,
             },
@@ -313,6 +358,9 @@ class GenerationPipeline:
             administratively_truncated = termination_reason_counts.get(
                 "event_limit_reached", 0
             )
+            event_count_distribution = _episode_event_count_distribution(
+                accepted, event_count_buckets
+            )
             quality = {
                 "passed": (
                     len(accepted) == episode_count
@@ -326,6 +374,7 @@ class GenerationPipeline:
                 "validation_failure_count": validation_failures,
                 "text_alignment_failure_count": text_alignment_failures,
                 "total_event_count": total_events,
+                "episode_event_count_distribution": event_count_distribution,
                 "event_type_counts": dict(event_type_counts),
                 "relation_type_counts": dict(relation_type_counts),
                 "context_grounded_event_relation_count": context_grounded_event_relation_count,
@@ -345,7 +394,8 @@ class GenerationPipeline:
                 "termination_reason_counts": dict(termination_reason_counts),
                 "administratively_truncated_episode_count": administratively_truncated,
                 "semantic_judge_mode": judge_mode,
-                "semantic_judge_model": judge_config.get("model"),
+                "semantic_judge_model": resolved_judge_model,
+                "semantic_judge_base_url": resolved_judge_base_url,
                 "semantic_judged_episode_count": len(semantic_judged_indices),
                 "semantic_judge_call_count": semantic_judged_episode_count,
                 "semantic_pass_count": semantic_pass_count,
@@ -376,7 +426,11 @@ class GenerationPipeline:
     ) -> Tuple[EpisodeResult, Dict[str, Any]]:
         result = engine.run(episode_index, episode_seed)
         text_alignment = self.domain_package.render_episode_text(result)
-        text_validation = validate_text_alignment(result, text_alignment)
+        text_validation = validate_text_alignment(
+            result,
+            text_alignment,
+            self.domain_package.catalog(),
+        )
         result.validation["checks"]["text_alignment"] = text_validation["passed"]
         if text_validation["errors"]:
             result.validation["errors"].extend(text_validation["errors"])
@@ -389,3 +443,93 @@ def _unique_output_directory(path: Path) -> Path:
         return path
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     return path.with_name(f"{path.name}_{timestamp}")
+
+
+def _normalize_event_count_buckets(
+    raw_buckets: Any,
+) -> List[Dict[str, Any]]:
+    if not isinstance(raw_buckets, (list, tuple)) or not raw_buckets:
+        raise ValueError("quality_reporting.event_count_buckets must be non-empty")
+    normalized: List[Dict[str, Any]] = []
+    labels: set[str] = set()
+    expected_minimum = 0
+    for raw in raw_buckets:
+        if not isinstance(raw, dict):
+            raise ValueError("Each event-count bucket must be an object")
+        label = str(raw.get("label", "")).strip()
+        minimum = raw.get("min_events")
+        maximum = raw.get("max_events")
+        if not label or label in labels:
+            raise ValueError("Event-count bucket labels must be non-empty and unique")
+        if not isinstance(minimum, int) or isinstance(minimum, bool):
+            raise ValueError(f"Event-count bucket {label} has an invalid minimum")
+        if minimum != expected_minimum:
+            raise ValueError(
+                "Event-count buckets must be ordered, contiguous, and start at zero"
+            )
+        if maximum is not None and (
+            not isinstance(maximum, int)
+            or isinstance(maximum, bool)
+            or maximum < minimum
+        ):
+            raise ValueError(f"Event-count bucket {label} has an invalid maximum")
+        labels.add(label)
+        normalized.append(
+            {"label": label, "min_events": minimum, "max_events": maximum}
+        )
+        if maximum is None:
+            expected_minimum = -1
+        else:
+            expected_minimum = maximum + 1
+    if normalized[-1]["max_events"] is not None:
+        raise ValueError("The final event-count bucket must have no upper bound")
+    if any(item["max_events"] is None for item in normalized[:-1]):
+        raise ValueError("Only the final event-count bucket may be unbounded")
+    return normalized
+
+
+def _episode_event_count_distribution(
+    accepted: Dict[int, Tuple[EpisodeResult, Dict[str, Any]]],
+    bucket_specs: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    records = [
+        (
+            len(result.events),
+            str(result.episode_attributes.get("scenario_family", "unspecified")),
+        )
+        for result, _ in accepted.values()
+    ]
+    values = [count for count, _ in records]
+    exact_counts = Counter(values)
+    buckets: List[Dict[str, Any]] = []
+    for spec in bucket_specs:
+        minimum = int(spec["min_events"])
+        maximum = spec["max_events"]
+        matching = [
+            (count, scenario)
+            for count, scenario in records
+            if count >= minimum and (maximum is None or count <= maximum)
+        ]
+        scenario_counts = Counter(scenario for _, scenario in matching)
+        buckets.append(
+            {
+                **spec,
+                "count": len(matching),
+                "fraction": len(matching) / len(records) if records else 0.0,
+                "scenario_counts": dict(sorted(scenario_counts.items())),
+            }
+        )
+    return {
+        "summary": {
+            "count": len(values),
+            "min": min(values) if values else None,
+            "max": max(values) if values else None,
+            "mean": mean(values) if values else None,
+            "median": median(values) if values else None,
+        },
+        "exact_count_counts": {
+            str(count): exact_counts[count] for count in sorted(exact_counts)
+        },
+        "buckets": buckets,
+        "bucket_boundaries_are_reporting_only": True,
+    }
