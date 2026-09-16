@@ -4,9 +4,12 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from pathlib import Path
 
+from domain_packages.healthcare import (
+    HealthcarePackage,
+    build_healthcare_temporal_models,
+)
 from domain_packages.transportation import (
     TransportationPackage,
     build_transportation_temporal_models,
@@ -17,14 +20,13 @@ from generation_core.semantic_judge import LLMSemanticJudge
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    default_config = (
-        Path(__file__).resolve().parent
-        / "domain_packages"
-        / "transportation"
-        / "config"
-        / "default.json"
+    parser.add_argument(
+        "--domain",
+        choices=("transportation", "healthcare"),
+        default="transportation",
+        help="Domain package to run when --config is omitted.",
     )
-    parser.add_argument("--config", default=str(default_config))
+    parser.add_argument("--config")
     parser.add_argument("--output-dir")
     parser.add_argument("--episode-count", type=int)
     parser.add_argument(
@@ -34,15 +36,7 @@ def main() -> None:
         type=int,
     )
     parser.add_argument("--max-events-per-episode", type=int)
-    parser.add_argument(
-        "--scenario-family",
-        choices=(
-            "accident_propagation",
-            "weather_disruption",
-            "planned_closure",
-            "compound_weather_accident",
-        ),
-    )
+    parser.add_argument("--scenario-family")
     parser.add_argument("--seed", type=int)
     parser.add_argument(
         "--judge-mode",
@@ -60,12 +54,24 @@ def main() -> None:
     parser.add_argument("--judge-max-generation-attempts", type=int)
     args = parser.parse_args()
 
-    with Path(args.config).open("r", encoding="utf-8") as handle:
-        config = json.load(handle)
-    if config.get("domain") != "transportation":
-        raise ValueError(
-            "The first implemented domain package is transportation; other domain packages are structural stubs."
+    config_path = (
+        Path(args.config)
+        if args.config
+        else (
+            Path(__file__).resolve().parent
+            / "domain_packages"
+            / args.domain
+            / "config"
+            / "default.json"
         )
+    )
+    with config_path.open("r", encoding="utf-8") as handle:
+        config = json.load(handle)
+    domain = str(config.get("domain", ""))
+    if args.config and args.domain != "transportation" and args.domain != domain:
+        parser.error("--domain and the configured domain disagree")
+    if domain not in {"transportation", "healthcare"}:
+        raise ValueError(f"No executable domain package is registered for {domain!r}")
     if args.episode_count is not None:
         config["episode_count"] = args.episode_count
     if args.nodes_per_context is not None:
@@ -120,9 +126,15 @@ def main() -> None:
         )
     config["semantic_judge"] = judge_config
     output_dir = args.output_dir or config["output_directory"]
+    if domain == "transportation":
+        domain_package = TransportationPackage(config.get("domain_config", {}))
+        temporal_models = build_transportation_temporal_models()
+    else:
+        domain_package = HealthcarePackage(config.get("domain_config", {}))
+        temporal_models = build_healthcare_temporal_models()
     result = GenerationPipeline(
-        TransportationPackage(config.get("domain_config", {})),
-        build_transportation_temporal_models(),
+        domain_package,
+        temporal_models,
         config,
         output_dir,
         semantic_judge=semantic_judge,

@@ -125,7 +125,7 @@
 
 加载器检查时间顺序、观察窗边界、实体引用、明确父事件必须存在且不得晚于子事件，以及按上下文划分时同一上下文不得跨训练与留出集。默认拒绝同一上下文中的重叠观察窗，防止重复计算暴露时间。数据指纹覆盖全部规范化记录和来源元数据。
 
-机制通过领域目录内的 `mechanism_specs.json` 声明。通用字段包括源/目标事件类型、父组合方式、所需上下文关系、时间模型家族、生成时模型引用、协变量、关系语义、证据策略、拟合器和参数状态。交通首批机制已经声明；医学与分布式系统目前保留合法空目录，等待各自参考数据后再定义，通用核心中没有领域分支。
+机制通过领域目录内的 `mechanism_specs.json` 声明。通用字段包括源/目标事件类型、父组合方式、所需上下文关系、时间模型家族、生成时模型引用、协变量、关系语义、证据策略、拟合器和参数状态。交通与医学首批机制已经声明；分布式系统目前保留合法空目录。医学包用于机制一致、可审计的合成住院监测工作流，不声称诊断、处方、疗效或经验统计真实性；通用核心中仍然没有领域分支。
 
 第一项可执行拟合器是无协变量常数强度的最大似然估计：
 
@@ -149,9 +149,21 @@ python data_generation/run_parameter_calibration.py \
 
 ```bash
 python data_generation/run_data_generation.py \
+  --domain transportation \
   --episode-count 10 \
   --nodes-per-context 1000 \
   --output-dir data_generation/output_multidomain_transportation
+```
+
+医学领域使用同一入口与输出协议，只替换领域包：
+
+```bash
+python data_generation/run_data_generation.py \
+  --domain healthcare \
+  --episode-count 20 \
+  --nodes-per-context 1000 \
+  --seed 20260916 \
+  --output-dir data_generation/output_healthcare_20
 ```
 
 可用 `--scenario-family` 固定某个场景做单元检查，或用配置文件中的 `scenario_weights` 生成混合批次；`--max-events-per-episode` 可覆盖行政上限。若达到该上限，整批质量门会失败并报告 `administratively_truncated_episode_count`，不会把不完整 episode 当作合格输出。

@@ -6,19 +6,21 @@ The current development path is documented in
 [`GENERATION_CORE_DESIGN.md`](GENERATION_CORE_DESIGN.md). It generates an
 auditable sparse context graph, event records, realized event relations,
 complete candidate lifecycles, and a pre-event competing-risk set for every
-fired event. Run it from the repository root with:
+fired event. Transportation and healthcare are executable domain packages.
+Run a healthcare batch from the repository root with:
 
 ```bash
 python data_generation/run_data_generation.py \
+    --domain healthcare \
     --episode-count 10 \
     --nodes-per-context 1000 \
-    --output-dir data_generation/output_multidomain_transportation
+    --output-dir data_generation/output_healthcare
 ```
 
 `risk_sets.jsonl` records the shared time--type--entity decision evidence.
-Healthcare and distributed-systems packages currently contain compileable
-structural contracts only. The pipeline described below is the frozen original
-ST-Bench generation path and remains available as a reproducible baseline.
+The distributed-systems package currently contains a compileable structural
+contract only. The pipeline described below is the frozen original ST-Bench
+generation path and remains available as a reproducible baseline.
 
 For server-side LLM semantic review, put `LLM_API_KEY` and, when needed,
 `LLM_BASE_URL` in the server `.env` file, then add

@@ -1,0 +1,36 @@
+{
+  "domain": "healthcare",
+  "seed": 20260916,
+  "episode_count": 10,
+  "max_events_per_episode": 64,
+  "semantic_judge": {
+    "mode": "none",
+    "workers": 1,
+    "max_tokens": 1000,
+    "protocol_max_attempts": 3,
+    "max_generation_attempts": 3
+  },
+  "quality_reporting": {
+    "event_count_buckets": [
+      {"label": "empty", "min_events": 0, "max_events": 0},
+      {"label": "short", "min_events": 1, "max_events": 4},
+      {"label": "medium", "min_events": 5, "max_events": 12},
+      {"label": "long", "min_events": 13, "max_events": null}
+    ]
+  },
+  "domain_config": {
+    "base_seed": 20260916,
+    "context_count": 4,
+    "nodes_per_context": 1000,
+    "duration_seconds": 28800.0,
+    "start_time": "2026-09-16T08:00:00+08:00",
+    "scenario_weights": {
+      "temperature_escalation": 0.25,
+      "oxygen_desaturation_response": 0.25,
+      "laboratory_abnormality_review": 0.2,
+      "combined_vital_sign_escalation": 0.2,
+      "routine_observation": 0.1
+    }
+  },
+  "output_directory": "data_generation/output_healthcare"
+}

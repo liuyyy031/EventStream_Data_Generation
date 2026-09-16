@@ -13,6 +13,19 @@ DATA_GENERATION = Path(__file__).resolve().parents[1]
 if str(DATA_GENERATION) not in sys.path:
     sys.path.insert(0, str(DATA_GENERATION))
 
+from domain_packages.healthcare import (  # noqa: E402
+    HealthcarePackage,
+    build_healthcare_temporal_models,
+)
+from domain_packages.healthcare.package import (  # noqa: E402
+    CARE_PLAN_ADJUSTED,
+    CLINICAL_REVIEW,
+    FOLLOW_UP,
+    LAB_RESULT,
+    MONITORING_ALERT,
+    SPECIMEN_COLLECTION,
+    THRESHOLD_FLAG,
+)
 from domain_packages.transportation import (  # noqa: E402
     TransportationPackage,
     build_transportation_temporal_models,
@@ -178,8 +191,12 @@ class CalibrationContractTest(unittest.TestCase):
         healthcare = load_mechanism_registry(root / "healthcare" / "mechanism_specs.json")
         distributed = load_mechanism_registry(root / "distributed_systems" / "mechanism_specs.json")
         self.assertEqual(len(transportation), 11)
-        self.assertEqual(len(healthcare), 0)
+        self.assertEqual(len(healthcare), 12)
         self.assertEqual(len(distributed), 0)
+        self.assertEqual(
+            healthcare.get("healthcare.multisignal_flags_to_alert").parent_combination,
+            "all_of",
+        )
         joint = transportation.get(
             "transportation.weather_collision_joint_to_congestion"
         )
@@ -612,6 +629,128 @@ class SemanticJudgeTest(unittest.TestCase):
         self.assertTrue(judged.passed)
         self.assertEqual(judged.protocol_attempt_count, 2)
         self.assertEqual(len(judged.protocol_errors), 1)
+
+
+class HealthcarePackageTest(unittest.TestCase):
+    def test_all_healthcare_scenarios_are_executable_and_valid(self) -> None:
+        for scenario in (
+            "temperature_escalation",
+            "oxygen_desaturation_response",
+            "laboratory_abnormality_review",
+            "combined_vital_sign_escalation",
+            "routine_observation",
+        ):
+            with self.subTest(scenario=scenario):
+                package = HealthcarePackage(
+                    {
+                        "nodes_per_context": 24,
+                        "context_count": 1,
+                        "duration_seconds": 28_800.0,
+                        "scenario_weights": {scenario: 1.0},
+                    }
+                )
+                result = SimulationEngine(
+                    package,
+                    build_healthcare_temporal_models(),
+                    max_events=64,
+                ).run(0, 20260916)
+                self.assertTrue(result.validation["passed"], result.validation)
+                self.assertTrue(result.events)
+                self.assertEqual(result.episode_attributes["scenario_family"], scenario)
+                self.assertEqual(len(result.risk_sets), len(result.events))
+                self.assertTrue(
+                    all(
+                        event.provenance["not_for_clinical_decision_making"]
+                        for event in result.events
+                    )
+                )
+                alignment = package.render_episode_text(result)
+                self.assertTrue(
+                    validate_text_alignment(
+                        result,
+                        alignment,
+                        package.catalog(),
+                    )["passed"]
+                )
+
+    def test_combined_vital_sign_scenario_has_explicit_multi_parent_alert(self) -> None:
+        package = HealthcarePackage(
+            {
+                "nodes_per_context": 30,
+                "context_count": 1,
+                "scenario_weights": {"combined_vital_sign_escalation": 1.0},
+            }
+        )
+        result = SimulationEngine(
+            package,
+            build_healthcare_temporal_models(),
+            max_events=64,
+        ).run(0, 20260916)
+        alerts = [
+            candidate
+            for candidate in result.candidates
+            if candidate.target_event_type_id == MONITORING_ALERT
+        ]
+        self.assertEqual(len(alerts), 1)
+        self.assertEqual(alerts[0].combination, "all_of")
+        self.assertEqual(len(alerts[0].parent_event_ids), 2)
+        grouped = [
+            relation
+            for relation in result.event_relations
+            if relation.target_event_id == alerts[0].fired_event_id
+        ]
+        self.assertEqual(len(grouped), 2)
+        self.assertEqual(len({item.mechanism_group_id for item in grouped}), 1)
+
+    def test_laboratory_workflow_keeps_specimen_result_and_review_distinct(self) -> None:
+        package = HealthcarePackage(
+            {
+                "nodes_per_context": 30,
+                "context_count": 1,
+                "scenario_weights": {"laboratory_abnormality_review": 1.0},
+            }
+        )
+        result = SimulationEngine(
+            package,
+            build_healthcare_temporal_models(),
+            max_events=64,
+        ).run(0, 20260917)
+        types = [event.event_type_id for event in result.events]
+        for expected in (
+            SPECIMEN_COLLECTION,
+            LAB_RESULT,
+            THRESHOLD_FLAG,
+            MONITORING_ALERT,
+            CLINICAL_REVIEW,
+            CARE_PLAN_ADJUSTED,
+            FOLLOW_UP,
+        ):
+            self.assertIn(expected, types)
+
+    def test_healthcare_context_is_sparse_typed_and_scales_to_1000_entities(self) -> None:
+        package = HealthcarePackage(
+            {
+                "nodes_per_context": 1000,
+                "context_count": 1,
+            }
+        )
+        context = package.create_episode_context(0, 20260916)
+        self.assertEqual(len(context.entities), 1000)
+        profile = context.context_attributes["topology_profile"]
+        self.assertFalse(profile["spatial_coordinates_required"])
+        self.assertFalse(
+            profile["observed_statistics"]["dense_matrix_materialized"]
+        )
+        self.assertLess(len(context.context_relations), 5 * len(context.entities))
+        self.assertGreater(len(set(profile["entity_type_counts"])), 5)
+
+    def test_healthcare_catalog_excludes_diagnostic_and_prescriptive_claims(self) -> None:
+        scope = HealthcarePackage({"nodes_per_context": 24}).catalog()[
+            "clinical_safety_scope"
+        ]
+        self.assertFalse(scope["diagnostic_claims"])
+        self.assertFalse(scope["medication_or_dose_recommendations"])
+        self.assertFalse(scope["treatment_effectiveness_claims"])
 
 
 class SchedulerTest(unittest.TestCase):

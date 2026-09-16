@@ -1,5 +1,5 @@
-"""Healthcare domain package placeholder.
+"""Healthcare domain package."""
 
-Only the contract structure is declared in this iteration.  A factual package
-requires terminology mapping, reference data, and clinical review.
-"""
+from .package import HealthcarePackage, build_healthcare_temporal_models
+
+__all__ = ["HealthcarePackage", "build_healthcare_temporal_models"]

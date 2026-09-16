@@ -92,7 +92,7 @@ class GenerationPipeline:
         manifest_config["quality_reporting"] = manifest_quality_reporting
         manifest = {
             "schema_version": "event-stream-contract-v2",
-            "generator_version": "multidomain-generation-core-v0.4.2",
+            "generator_version": "multidomain-generation-core-v0.5.0",
             "domain": self.domain_package.domain_id,
             "seed": base_seed,
             "created_at": datetime.now().astimezone().isoformat(),
@@ -118,6 +118,7 @@ class GenerationPipeline:
                 "realized_parent_attribution_is_explicit": True,
                 "llm_judge_is_semantic_advisory_not_statistical_proof": True,
                 "judge_protocol_failure_is_not_semantic_rejection": True,
+                "domain_claim_boundaries_are_binding_for_semantic_review": True,
                 "statistical_realism_requires_domain_fit_and_holdout_validation": True,
             },
             "semantic_judge": {
