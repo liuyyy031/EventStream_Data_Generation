@@ -13,6 +13,7 @@ from .models import EpisodeResult
 class SemanticJudgeResult:
     outcome: str
     passed: bool
+    issue_scope: str
     reasons: List[str]
     flagged_record_ids: List[str]
     mode: str = "llm"
@@ -114,6 +115,7 @@ class LLMSemanticJudge:
             return SemanticJudgeResult(
                 outcome="passed" if passed else "semantic_rejected",
                 passed=passed,
+                issue_scope=str(normalized["issue_scope"]),
                 reasons=list(normalized["reasons"]),
                 flagged_record_ids=list(normalized["flagged_record_ids"]),
                 protocol_attempt_count=attempt,
@@ -124,6 +126,7 @@ class LLMSemanticJudge:
         return SemanticJudgeResult(
             outcome="protocol_error",
             passed=False,
+            issue_scope="protocol",
             reasons=[
                 f"LLM judge protocol failed after {self.protocol_max_attempts} attempts"
             ],
@@ -271,8 +274,18 @@ def _build_prompt(
         "Do not reject merely because the episode is synthetic, contains no "
         "events, uses prior parameters, has censored candidates, or differs from an "
         "empirical frequency. Do not claim real-world statistical realism.\n"
+        "Classify every rejection before returning it. Use issue_scope=text only "
+        "when the structured episode is coherent and rewriting grounded text alone "
+        "can fix the problem without changing any event, relation, time, entity, "
+        "candidate, or risk set. Use issue_scope=structure when the supplied "
+        "structured records themselves are contradictory. Use issue_scope=mixed "
+        "when both are present. A text-scoped rejection must flag only event or "
+        "event-relation IDs that are referenced by grounded_text claims; a candidate "
+        "or risk-set ID is never text-correctable. A passed result must use "
+        "issue_scope=none.\n"
         "Return exactly one compact JSON object with no Markdown and exactly these keys:\n"
-        '{"passed":true_or_false,"reasons":["short reason"],'
+        '{"passed":true_or_false,"issue_scope":"none|text|structure|mixed",'
+        '"reasons":["short reason"],'
         '"flagged_record_ids":["event/relation/candidate ID"]}\n'
         f"Use 1 to {reason_limit} short reasons. When passed, give one concise pass "
         "reason and an empty flagged_record_ids list. When rejected, every claimed "
@@ -284,10 +297,22 @@ def _build_prompt(
 def _validate_judge_object(
     parsed: Dict[str, Any], reason_limit: int
 ) -> Tuple[Dict[str, Any] | None, str | None]:
-    if set(parsed) != {"passed", "reasons", "flagged_record_ids"}:
+    if set(parsed) != {
+        "passed",
+        "issue_scope",
+        "reasons",
+        "flagged_record_ids",
+    }:
         return None, "LLM judge returned missing or additional keys"
     if not isinstance(parsed.get("passed"), bool):
         return None, "LLM judge field 'passed' must be boolean"
+    issue_scope = parsed.get("issue_scope")
+    if issue_scope not in {"none", "text", "structure", "mixed"}:
+        return None, "LLM judge field 'issue_scope' is invalid"
+    if parsed["passed"] and issue_scope != "none":
+        return None, "A passed episode must use issue_scope=none"
+    if not parsed["passed"] and issue_scope == "none":
+        return None, "A rejected episode must identify a non-none issue_scope"
     reasons = parsed.get("reasons")
     if not isinstance(reasons, list) or not reasons:
         return None, "LLM judge reasons must be a non-empty array"
@@ -307,6 +332,7 @@ def _validate_judge_object(
         return None, "A passed episode must not flag record IDs"
     return {
         "passed": parsed["passed"],
+        "issue_scope": issue_scope,
         "reasons": [str(reason).strip()[:400] for reason in reasons],
         "flagged_record_ids": [str(record_id).strip()[:200] for record_id in record_ids],
     }, None

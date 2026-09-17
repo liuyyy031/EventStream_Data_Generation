@@ -21,17 +21,22 @@ class DatasetWriter:
         "candidates": "candidates.jsonl",
         "risk_sets": "risk_sets.jsonl",
         "judge_results": "judge_results.jsonl",
+        "semantic_corrections": "semantic_corrections.jsonl",
         "episode_texts": "episode_texts.jsonl",
+        "qa_pairs": "qa_pairs.jsonl",
+        "training_instruction": "training/qa_instruction.jsonl",
+        "training_chat": "training/qa_chat.jsonl",
         "validation": "validation.jsonl",
     }
 
     def __init__(self, output_dir: str | Path) -> None:
         self.output_dir = Path(output_dir)
         self.output_dir.mkdir(parents=True, exist_ok=False)
-        self.handles: Dict[str, IO[str]] = {
-            key: (self.output_dir / filename).open("w", encoding="utf-8", newline="\n")
-            for key, filename in self.FILES.items()
-        }
+        self.handles: Dict[str, IO[str]] = {}
+        for key, filename in self.FILES.items():
+            target = self.output_dir / filename
+            target.parent.mkdir(parents=True, exist_ok=True)
+            self.handles[key] = target.open("w", encoding="utf-8", newline="\n")
         self._written_contexts: set[str] = set()
         self._written_entities: set[str] = set()
         self._written_context_relations: set[str] = set()
@@ -94,6 +99,18 @@ class DatasetWriter:
 
     def write_judge_result(self, payload: Dict[str, Any]) -> None:
         self._write("judge_results", payload)
+
+    def write_semantic_correction(self, payload: Dict[str, Any]) -> None:
+        self._write("semantic_corrections", payload)
+
+    def write_qa_pair(self, payload: Dict[str, Any]) -> None:
+        self._write("qa_pairs", payload)
+
+    def write_training_instruction(self, payload: Dict[str, Any]) -> None:
+        self._write("training_instruction", payload)
+
+    def write_training_chat(self, payload: Dict[str, Any]) -> None:
+        self._write("training_chat", payload)
 
     def write_json(self, filename: str, payload: Dict[str, Any]) -> None:
         with (self.output_dir / filename).open("w", encoding="utf-8", newline="\n") as handle:

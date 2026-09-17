@@ -27,7 +27,18 @@ from .models import (
     TemporalExtent,
 )
 from .scheduler import SimulationEngine
+from .semantic_correction import (
+    LLMSemanticCorrector,
+    SemanticCorrectionResult,
+    SemanticCorrector,
+)
 from .semantic_judge import LLMSemanticJudge, SemanticJudge, SemanticJudgeResult
+from .qa_export import (
+    chat_training_example,
+    generate_episode_qa,
+    instruction_training_example,
+    validate_qa_pair,
+)
 from .reference_data import (
     NormalizedJsonlReferenceAdapter,
     ReferenceDataset,
@@ -83,6 +94,13 @@ __all__ = [
     "SemanticJudge",
     "SemanticJudgeResult",
     "LLMSemanticJudge",
+    "SemanticCorrector",
+    "SemanticCorrectionResult",
+    "LLMSemanticCorrector",
+    "generate_episode_qa",
+    "validate_qa_pair",
+    "instruction_training_example",
+    "chat_training_example",
     "SparseHeterogeneousTopologyGenerator",
     "StatePredicateEvidence",
     "TemporalExtent",

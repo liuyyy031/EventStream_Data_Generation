@@ -14,16 +14,16 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List
 
-from generation_core.domain import (
+from data_generation.generation_core.domain import (
     CandidateSpec,
     CandidateUpdate,
     EpisodeContext,
     ObservationPlan,
     RelationSpec,
 )
-from generation_core.domain_spec import load_domain_spec
-from generation_core.mechanisms import load_mechanism_registry
-from generation_core.models import (
+from data_generation.generation_core.domain_spec import load_domain_spec
+from data_generation.generation_core.mechanisms import load_mechanism_registry
+from data_generation.generation_core.models import (
     Candidate,
     ContextEvidence,
     ContextRelation,
@@ -34,13 +34,13 @@ from generation_core.models import (
     StatePredicateEvidence,
     TemporalExtent,
 )
-from generation_core.temporal import (
+from data_generation.generation_core.temporal import (
     ConditionalLogNormalModel,
     DeterministicDelayModel,
     TemporalModelRegistry,
     build_standard_temporal_registry,
 )
-from generation_core.topology import SparseHeterogeneousTopologyGenerator
+from data_generation.generation_core.topology import SparseHeterogeneousTopologyGenerator
 
 
 TEMPERATURE = "healthcare.observation.vital_sign.temperature_recorded"

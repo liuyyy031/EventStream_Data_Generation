@@ -12,7 +12,14 @@ from typing import Any, Dict, List, Tuple
 
 from .domain import DomainPackage
 from .models import EpisodeResult
+from .qa_export import (
+    chat_training_example,
+    generate_episode_qa,
+    instruction_training_example,
+    training_export_report,
+)
 from .scheduler import SimulationEngine
+from .semantic_correction import SemanticCorrectionResult, SemanticCorrector
 from .semantic_judge import SemanticJudge, SemanticJudgeResult
 from .temporal import TemporalModelRegistry
 from .validation import validate_text_alignment
@@ -35,6 +42,7 @@ class GenerationPipeline:
         config: Dict[str, Any],
         output_dir: str | Path,
         semantic_judge: SemanticJudge | None = None,
+        semantic_corrector: SemanticCorrector | None = None,
     ) -> None:
         self.domain_package = domain_package
         self.temporal_models = temporal_models
@@ -42,6 +50,7 @@ class GenerationPipeline:
         self.requested_output_dir = Path(output_dir)
         self.output_dir = _unique_output_directory(self.requested_output_dir)
         self.semantic_judge = semantic_judge
+        self.semantic_corrector = semantic_corrector
 
     def run(self) -> Dict[str, Any]:
         episode_count = int(self.config.get("episode_count", 1))
@@ -53,12 +62,37 @@ class GenerationPipeline:
         max_generation_attempts = max(
             1, int(judge_config.get("max_generation_attempts", 3))
         )
+        correction_config = dict(self.config.get("semantic_correction", {}))
+        correction_mode = str(correction_config.get("mode", "none"))
+        effective_correction_mode = (
+            "llm" if judge_mode == "llm" and correction_mode == "llm" else "none"
+        )
+        max_correction_rounds = max(
+            0, int(correction_config.get("max_rounds", 2))
+        )
+        qa_export_config = dict(self.config.get("qa_export", {}))
+        qa_export_mode = str(
+            qa_export_config.get("mode", "ground_truth_template")
+        )
+        qa_history_window_events = max(
+            1, int(qa_export_config.get("history_window_events", 32))
+        )
         if episode_count <= 0:
             raise ValueError("episode_count must be positive")
         if judge_mode not in {"none", "llm"}:
             raise ValueError("semantic_judge.mode must be 'none' or 'llm'")
         if judge_mode == "llm" and self.semantic_judge is None:
             raise ValueError("LLM judge mode requires an injected semantic judge")
+        if correction_mode not in {"none", "llm"}:
+            raise ValueError("semantic_correction.mode must be 'none' or 'llm'")
+        if effective_correction_mode == "llm" and self.semantic_corrector is None:
+            raise ValueError(
+                "LLM semantic correction mode requires an injected semantic corrector"
+            )
+        if qa_export_mode not in {"none", "ground_truth_template"}:
+            raise ValueError(
+                "qa_export.mode must be 'none' or 'ground_truth_template'"
+            )
         quality_reporting = dict(self.config.get("quality_reporting", {}))
         event_count_buckets = _normalize_event_count_buckets(
             quality_reporting.get(
@@ -83,6 +117,17 @@ class GenerationPipeline:
         manifest_judge_config["model"] = resolved_judge_model
         manifest_judge_config["base_url"] = resolved_judge_base_url
         manifest_config["semantic_judge"] = manifest_judge_config
+        manifest_correction_config = dict(
+            manifest_config.get("semantic_correction", {})
+        )
+        manifest_correction_config["model"] = resolved_judge_model
+        manifest_correction_config["base_url"] = resolved_judge_base_url
+        manifest_correction_config["effective_mode"] = effective_correction_mode
+        manifest_config["semantic_correction"] = manifest_correction_config
+        manifest_qa_export = dict(manifest_config.get("qa_export", {}))
+        manifest_qa_export["mode"] = qa_export_mode
+        manifest_qa_export["history_window_events"] = qa_history_window_events
+        manifest_config["qa_export"] = manifest_qa_export
         manifest_quality_reporting = dict(
             manifest_config.get("quality_reporting", {})
         )
@@ -92,7 +137,7 @@ class GenerationPipeline:
         manifest_config["quality_reporting"] = manifest_quality_reporting
         manifest = {
             "schema_version": "event-stream-contract-v2",
-            "generator_version": "multidomain-generation-core-v0.5.0",
+            "generator_version": "multidomain-generation-core-v0.7.0",
             "domain": self.domain_package.domain_id,
             "seed": base_seed,
             "created_at": datetime.now().astimezone().isoformat(),
@@ -117,8 +162,12 @@ class GenerationPipeline:
                 "deterministic_atoms_are_not_given_fictitious_densities": True,
                 "realized_parent_attribution_is_explicit": True,
                 "llm_judge_is_semantic_advisory_not_statistical_proof": True,
+                "semantic_correction_never_mutates_structured_truth": True,
+                "only_text_scoped_judge_rejections_are_correctable": True,
                 "judge_protocol_failure_is_not_semantic_rejection": True,
                 "domain_claim_boundaries_are_binding_for_semantic_review": True,
+                "qa_answers_are_derived_from_structured_truth_not_llm": True,
+                "training_inputs_use_final_accepted_grounded_text": True,
                 "statistical_realism_requires_domain_fit_and_holdout_validation": True,
             },
             "semantic_judge": {
@@ -128,16 +177,38 @@ class GenerationPipeline:
                 "workers": judge_workers,
                 "max_generation_attempts": max_generation_attempts,
             },
+            "semantic_correction": {
+                "requested_mode": correction_mode,
+                "effective_mode": effective_correction_mode,
+                "model": resolved_judge_model,
+                "base_url": resolved_judge_base_url,
+                "max_rounds": max_correction_rounds,
+            },
+            "qa_export": {
+                "mode": qa_export_mode,
+                "history_window_events": qa_history_window_events,
+                "qa_path": "qa_pairs.jsonl",
+                "instruction_training_path": "training/qa_instruction.jsonl",
+                "chat_training_path": "training/qa_chat.jsonl",
+            },
         }
 
         accepted: Dict[int, Tuple[EpisodeResult, Dict[str, Any]]] = {}
         judge_records: List[Dict[str, Any]] = []
+        correction_records: List[Dict[str, Any]] = []
         semantic_judged_episode_count = 0
         semantic_judged_indices: set[int] = set()
         semantic_pass_count = 0
         semantic_rejection_count = 0
         judge_protocol_retry_count = 0
         judge_protocol_failure_count = 0
+        semantic_correction_call_count = 0
+        semantic_correction_success_count = 0
+        semantic_correction_protocol_retry_count = 0
+        semantic_correction_protocol_failure_count = 0
+        text_scoped_rejection_count = 0
+        structure_scoped_rejection_count = 0
+        mixed_scoped_rejection_count = 0
         deterministic_rejection_count = 0
         generation_retry_count = 0
         failed_episode_indices: set[int] = set()
@@ -153,8 +224,14 @@ class GenerationPipeline:
                 result.validation["semantic_judge"] = {
                     "outcome": "not_run",
                     "passed": None,
+                    "issue_scope": "none",
                     "mode": "none",
                     "reasons": ["No semantic judge was requested"],
+                }
+                result.validation["semantic_correction"] = {
+                    "mode": "none",
+                    "round_count": 0,
+                    "applied": False,
                 }
                 accepted[episode_index] = (result, text_alignment)
                 judge_records.append(
@@ -212,10 +289,11 @@ class GenerationPipeline:
                 with ThreadPoolExecutor(max_workers=judge_workers) as pool:
                     futures = {
                         pool.submit(
-                            self.semantic_judge.evaluate,
+                            self._review_episode,
                             result,
                             text_alignment,
                             domain_catalog,
+                            max_correction_rounds=max_correction_rounds,
                         ): (episode_index, episode_seed, result, text_alignment)
                         for episode_index, (
                             episode_seed,
@@ -231,49 +309,121 @@ class GenerationPipeline:
                             text_alignment,
                         ) = futures[future]
                         try:
-                            judge_result = future.result()
+                            (
+                                reviewed_text_alignment,
+                                review_judgments,
+                                review_corrections,
+                            ) = future.result()
                         except Exception as exc:  # noqa: BLE001 - API boundary
-                            judge_result = SemanticJudgeResult(
-                                outcome="protocol_error",
-                                passed=False,
-                                reasons=[f"LLM judge call failed: {exc}"],
-                                flagged_record_ids=[],
-                                mode="llm",
-                                protocol_attempt_count=1,
-                                model_id=judge_config.get("model"),
-                                provider_base_url=judge_config.get("base_url"),
-                                protocol_errors=[{"attempt": 1, "error": str(exc)}],
-                            )
-                        semantic_judged_episode_count += 1
+                            reviewed_text_alignment = text_alignment
+                            review_judgments = [
+                                (
+                                    0,
+                                    SemanticJudgeResult(
+                                        outcome="protocol_error",
+                                        passed=False,
+                                        issue_scope="protocol",
+                                        reasons=[f"LLM review workflow failed: {exc}"],
+                                        flagged_record_ids=[],
+                                        mode="llm",
+                                        protocol_attempt_count=1,
+                                        model_id=judge_config.get("model"),
+                                        provider_base_url=judge_config.get("base_url"),
+                                        protocol_errors=[
+                                            {"attempt": 1, "error": str(exc)}
+                                        ],
+                                    ),
+                                )
+                            ]
+                            review_corrections = []
                         semantic_judged_indices.add(episode_index)
-                        judge_protocol_retry_count += max(
-                            0, judge_result.protocol_attempt_count - 1
-                        )
-                        record = {
-                            "episode_index": episode_index,
-                            "episode_id": result.episode_id,
-                            "generation_attempt": generation_attempt,
-                            "seed": episode_seed,
-                            **judge_result.to_dict(),
-                        }
-                        judge_records.append(record)
-                        if judge_result.outcome == "protocol_error":
+                        for correction_round, judge_result in review_judgments:
+                            semantic_judged_episode_count += 1
+                            judge_protocol_retry_count += max(
+                                0, judge_result.protocol_attempt_count - 1
+                            )
+                            if not judge_result.passed:
+                                semantic_rejection_count += int(
+                                    judge_result.outcome == "semantic_rejected"
+                                )
+                                rejection_reason_counts.update(judge_result.reasons)
+                                text_scoped_rejection_count += int(
+                                    judge_result.issue_scope == "text"
+                                )
+                                structure_scoped_rejection_count += int(
+                                    judge_result.issue_scope == "structure"
+                                )
+                                mixed_scoped_rejection_count += int(
+                                    judge_result.issue_scope == "mixed"
+                                )
+                            judge_records.append(
+                                {
+                                    "episode_index": episode_index,
+                                    "episode_id": result.episode_id,
+                                    "generation_attempt": generation_attempt,
+                                    "semantic_correction_round": correction_round,
+                                    "seed": episode_seed,
+                                    **judge_result.to_dict(),
+                                }
+                            )
+                        correction_failed = False
+                        for correction_round, correction_result in review_corrections:
+                            semantic_correction_call_count += 1
+                            semantic_correction_protocol_retry_count += max(
+                                0, correction_result.protocol_attempt_count - 1
+                            )
+                            correction_records.append(
+                                {
+                                    "episode_index": episode_index,
+                                    "episode_id": result.episode_id,
+                                    "generation_attempt": generation_attempt,
+                                    "semantic_correction_round": correction_round,
+                                    "seed": episode_seed,
+                                    **correction_result.audit_dict(),
+                                }
+                            )
+                            if not correction_result.succeeded:
+                                correction_failed = True
+                                semantic_correction_protocol_failure_count += 1
+                                judge_protocol_error_counts.update(
+                                    str(item.get("error", "unknown correction error"))
+                                    for item in correction_result.protocol_errors
+                                )
+                        final_judge_result = review_judgments[-1][1]
+                        if correction_failed:
+                            failed_episode_indices.add(episode_index)
+                            protocol_abort = True
+                            continue
+                        if final_judge_result.outcome == "protocol_error":
                             judge_protocol_failure_count += 1
                             judge_protocol_error_counts.update(
                                 str(item.get("error", "unknown protocol error"))
-                                for item in judge_result.protocol_errors
+                                for item in final_judge_result.protocol_errors
                             )
                             failed_episode_indices.add(episode_index)
                             protocol_abort = True
                             continue
-                        if judge_result.passed:
+                        if final_judge_result.passed:
                             semantic_pass_count += 1
-                            result.validation["semantic_judge"] = judge_result.to_dict()
-                            accepted[episode_index] = (result, text_alignment)
+                            semantic_correction_success_count += int(
+                                bool(review_corrections)
+                            )
+                            result.validation["semantic_judge"] = (
+                                final_judge_result.to_dict()
+                            )
+                            result.validation["semantic_correction"] = {
+                                "mode": effective_correction_mode,
+                                "round_count": len(review_corrections),
+                                "applied": bool(review_corrections),
+                            }
+                            result.validation["checks"][
+                                "semantic_correction_alignment"
+                            ] = True
+                            accepted[episode_index] = (
+                                result,
+                                reviewed_text_alignment,
+                            )
                             pending.discard(episode_index)
-                        else:
-                            semantic_rejection_count += 1
-                            rejection_reason_counts.update(judge_result.reasons)
                 if protocol_abort:
                     break
             failed_episode_indices.update(set(range(episode_count)) - set(accepted))
@@ -293,6 +443,10 @@ class GenerationPipeline:
         risk_set_selection_mode_counts: Counter[str] = Counter()
         continuous_factorization_count = 0
         total_risk_alternative_count = 0
+        qa_pair_count = 0
+        qa_validation_failure_count = 0
+        qa_type_counts: Counter[str] = Counter()
+        all_qa_records: List[Dict[str, Any]] = []
         with DatasetWriter(self.output_dir) as writer:
             writer.write_manifest(
                 manifest,
@@ -304,13 +458,44 @@ class GenerationPipeline:
                 key=lambda item: (
                     int(item["episode_index"]),
                     int(item["generation_attempt"]),
+                    int(item.get("semantic_correction_round", 0)),
                 ),
             ):
                 writer.write_judge_result(record)
+            for record in sorted(
+                correction_records,
+                key=lambda item: (
+                    int(item["episode_index"]),
+                    int(item["generation_attempt"]),
+                    int(item["semantic_correction_round"]),
+                ),
+            ):
+                writer.write_semantic_correction(record)
             for episode_index in sorted(accepted):
                 result, text_alignment = accepted[episode_index]
                 writer.write_episode(result)
                 writer.write_episode_text(text_alignment)
+                episode_qas = (
+                    generate_episode_qa(
+                        result,
+                        text_alignment,
+                        history_window_events=qa_history_window_events,
+                    )
+                    if qa_export_mode == "ground_truth_template"
+                    else []
+                )
+                for qa in episode_qas:
+                    writer.write_qa_pair(qa)
+                    writer.write_training_instruction(
+                        instruction_training_example(qa)
+                    )
+                    writer.write_training_chat(chat_training_example(qa))
+                    all_qa_records.append(qa)
+                    qa_pair_count += 1
+                    qa_type_counts[str(qa["qa_type"])] += 1
+                    qa_validation_failure_count += int(
+                        not qa.get("validation", {}).get("passed", False)
+                    )
                 validation_failures += int(not result.validation["passed"])
                 text_alignment_failures += int(
                     not result.validation["checks"].get("text_alignment", False)
@@ -362,18 +547,32 @@ class GenerationPipeline:
             event_count_distribution = _episode_event_count_distribution(
                 accepted, event_count_buckets
             )
+            training_report = training_export_report(
+                all_qa_records,
+                instruction_path="training/qa_instruction.jsonl",
+                chat_path="training/qa_chat.jsonl",
+            )
+            writer.write_json("training_export_report.json", training_report)
             quality = {
                 "passed": (
                     len(accepted) == episode_count
                     and validation_failures == 0
                     and administratively_truncated == 0
                     and judge_protocol_failure_count == 0
+                    and semantic_correction_protocol_failure_count == 0
+                    and qa_validation_failure_count == 0
                 ),
                 "episode_count": episode_count,
                 "accepted_episode_count": len(accepted),
                 "failed_episode_indices": sorted(failed_episode_indices),
                 "validation_failure_count": validation_failures,
                 "text_alignment_failure_count": text_alignment_failures,
+                "qa_export_mode": qa_export_mode,
+                "qa_pair_count": qa_pair_count,
+                "qa_type_counts": dict(sorted(qa_type_counts.items())),
+                "qa_validation_failure_count": qa_validation_failure_count,
+                "instruction_training_example_count": qa_pair_count,
+                "chat_training_example_count": qa_pair_count,
                 "total_event_count": total_events,
                 "episode_event_count_distribution": event_count_distribution,
                 "event_type_counts": dict(event_type_counts),
@@ -401,6 +600,23 @@ class GenerationPipeline:
                 "semantic_judge_call_count": semantic_judged_episode_count,
                 "semantic_pass_count": semantic_pass_count,
                 "semantic_rejection_count": semantic_rejection_count,
+                "semantic_rejection_scope_counts": {
+                    "text": text_scoped_rejection_count,
+                    "structure": structure_scoped_rejection_count,
+                    "mixed": mixed_scoped_rejection_count,
+                },
+                "semantic_correction_mode": effective_correction_mode,
+                "semantic_correction_model": resolved_judge_model,
+                "semantic_correction_base_url": resolved_judge_base_url,
+                "semantic_correction_max_rounds": max_correction_rounds,
+                "semantic_correction_call_count": semantic_correction_call_count,
+                "semantic_correction_success_count": semantic_correction_success_count,
+                "semantic_correction_protocol_retry_count": (
+                    semantic_correction_protocol_retry_count
+                ),
+                "semantic_correction_protocol_failure_count": (
+                    semantic_correction_protocol_failure_count
+                ),
                 "deterministic_rejection_count": deterministic_rejection_count,
                 "generation_retry_count": generation_retry_count,
                 "judge_protocol_retry_count": judge_protocol_retry_count,
@@ -418,6 +634,71 @@ class GenerationPipeline:
             }
             writer.write_json("quality_report.json", quality)
         return {"output_dir": str(self.output_dir.resolve()), "quality_report": quality}
+
+    def _review_episode(
+        self,
+        result: EpisodeResult,
+        text_alignment: Dict[str, Any],
+        domain_catalog: Dict[str, Any],
+        *,
+        max_correction_rounds: int,
+    ) -> Tuple[
+        Dict[str, Any],
+        List[Tuple[int, SemanticJudgeResult]],
+        List[Tuple[int, SemanticCorrectionResult]],
+    ]:
+        assert self.semantic_judge is not None
+        current_text = text_alignment
+        judgments: List[Tuple[int, SemanticJudgeResult]] = []
+        corrections: List[Tuple[int, SemanticCorrectionResult]] = []
+        correction_round = 0
+        while True:
+            judge_result = self.semantic_judge.evaluate(
+                result,
+                current_text,
+                domain_catalog,
+            )
+            judgments.append((correction_round, judge_result))
+            if judge_result.passed or judge_result.outcome == "protocol_error":
+                break
+            if (
+                judge_result.issue_scope != "text"
+                or not _text_feedback_is_addressable(
+                    judge_result,
+                    current_text,
+                )
+                or self.semantic_corrector is None
+                or correction_round >= max_correction_rounds
+            ):
+                break
+            correction_round += 1
+            correction_result = self.semantic_corrector.correct(
+                result,
+                current_text,
+                domain_catalog,
+                judge_result,
+                correction_round=correction_round,
+            )
+            if correction_result.succeeded:
+                alignment_check = validate_text_alignment(
+                    result,
+                    correction_result.text_alignment,
+                    domain_catalog,
+                )
+                if not alignment_check["passed"]:
+                    correction_result.outcome = "deterministic_alignment_error"
+                    correction_result.succeeded = False
+                    correction_result.protocol_errors.append(
+                        {
+                            "attempt": correction_result.protocol_attempt_count,
+                            "error": "; ".join(alignment_check["errors"]),
+                        }
+                    )
+            corrections.append((correction_round, correction_result))
+            if not correction_result.succeeded:
+                break
+            current_text = correction_result.text_alignment
+        return current_text, judgments, corrections
 
     def _prepare_episode(
         self,
@@ -444,6 +725,23 @@ def _unique_output_directory(path: Path) -> Path:
         return path
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
     return path.with_name(f"{path.name}_{timestamp}")
+
+
+def _text_feedback_is_addressable(
+    judge_result: SemanticJudgeResult,
+    text_alignment: Dict[str, Any],
+) -> bool:
+    grounded_record_ids: set[str] = set()
+    for claim in text_alignment.get("claims", []):
+        if not isinstance(claim, dict):
+            continue
+        grounded_record_ids.update(str(item) for item in claim.get("event_ids", []))
+        grounded_record_ids.update(
+            str(item) for item in claim.get("relation_ids", [])
+        )
+    return bool(judge_result.flagged_record_ids) and set(
+        judge_result.flagged_record_ids
+    ) <= grounded_record_ids
 
 
 def _normalize_event_count_buckets(

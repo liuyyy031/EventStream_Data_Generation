@@ -10,14 +10,16 @@ from pathlib import Path
 
 
 DATA_GENERATION = Path(__file__).resolve().parents[1]
-if str(DATA_GENERATION) not in sys.path:
-    sys.path.insert(0, str(DATA_GENERATION))
+TEST_OUTPUT_ROOT = DATA_GENERATION / "artifacts" / "test_runtime_output"
+REPOSITORY_ROOT = DATA_GENERATION.parent
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from domain_packages.healthcare import (  # noqa: E402
+from data_generation.domain_packages.healthcare import (  # noqa: E402
     HealthcarePackage,
     build_healthcare_temporal_models,
 )
-from domain_packages.healthcare.package import (  # noqa: E402
+from data_generation.domain_packages.healthcare.package import (  # noqa: E402
     CARE_PLAN_ADJUSTED,
     CLINICAL_REVIEW,
     FOLLOW_UP,
@@ -26,29 +28,29 @@ from domain_packages.healthcare.package import (  # noqa: E402
     SPECIMEN_COLLECTION,
     THRESHOLD_FLAG,
 )
-from domain_packages.transportation import (  # noqa: E402
+from data_generation.domain_packages.transportation import (  # noqa: E402
     TransportationPackage,
     build_transportation_temporal_models,
 )
-from domain_packages.transportation.package import (  # noqa: E402
+from data_generation.domain_packages.transportation.package import (  # noqa: E402
     COLLISION,
     CONGESTION,
     HEAVY_RAIN_START,
     ROAD_CLOSURE_START,
 )
-from generation_core.domain import (  # noqa: E402
+from data_generation.generation_core.domain import (  # noqa: E402
     CandidateSpec,
     CandidateUpdate,
     EpisodeContext,
     ObservationPlan,
 )
-from generation_core.domain_spec import load_domain_spec  # noqa: E402
-from generation_core.calibration import (  # noqa: E402
+from data_generation.generation_core.domain_spec import load_domain_spec  # noqa: E402
+from data_generation.generation_core.calibration import (  # noqa: E402
     CalibrationEngine,
     build_root_event_observations,
 )
-from generation_core.mechanisms import load_mechanism_registry  # noqa: E402
-from generation_core.models import (  # noqa: E402
+from data_generation.generation_core.mechanisms import load_mechanism_registry  # noqa: E402
+from data_generation.generation_core.models import (  # noqa: E402
     Candidate,
     CandidateStatus,
     ContextRelation,
@@ -57,29 +59,38 @@ from generation_core.models import (  # noqa: E402
     EventRecord,
     TemporalExtent,
 )
-from generation_core.reference_data import (  # noqa: E402
+from data_generation.generation_core.reference_data import (  # noqa: E402
     NormalizedJsonlReferenceAdapter,
     ReferenceDataset,
     ReferenceEvent,
     ReferenceWindow,
     validate_reference_dataset,
 )
-from generation_core.pipeline import GenerationPipeline  # noqa: E402
-from generation_core.scheduler import SimulationEngine, _resolve_activation_time  # noqa: E402
-from generation_core.semantic_judge import (  # noqa: E402
+from data_generation.generation_core.pipeline import GenerationPipeline  # noqa: E402
+from data_generation.generation_core.qa_export import (  # noqa: E402
+    chat_training_example,
+    generate_episode_qa,
+    instruction_training_example,
+)
+from data_generation.generation_core.scheduler import SimulationEngine, _resolve_activation_time  # noqa: E402
+from data_generation.generation_core.semantic_correction import (  # noqa: E402
+    LLMSemanticCorrector,
+    SemanticCorrectionResult,
+)
+from data_generation.generation_core.semantic_judge import (  # noqa: E402
     LLMSemanticJudge,
     SemanticJudgeResult,
     _build_prompt,
 )
-from generation_core.temporal import (  # noqa: E402
+from data_generation.generation_core.temporal import (  # noqa: E402
     ConditionalGammaModel,
     ConditionalWeibullModel,
     DeterministicDelayModel,
     PiecewiseExponentialHazardModel,
     TemporalModelRegistry,
 )
-from generation_core.validation import validate_text_alignment  # noqa: E402
-from generation_core.topology import (  # noqa: E402
+from data_generation.generation_core.validation import validate_text_alignment  # noqa: E402
+from data_generation.generation_core.topology import (  # noqa: E402
     ContextRelationIndex,
     RelationLayerSpec,
     SparseHeterogeneousTopologyGenerator,
@@ -239,7 +250,7 @@ class CalibrationContractTest(unittest.TestCase):
 
     def test_normalized_jsonl_adapter_preserves_source_fingerprint(self) -> None:
         dataset = self._reference_dataset()
-        root = DATA_GENERATION / "test_runtime_output" / f"reference_{uuid.uuid4().hex}"
+        root = TEST_OUTPUT_ROOT / f"reference_{uuid.uuid4().hex}"
         root.mkdir(parents=True)
         (root / "reference_manifest.json").write_text(
             json.dumps(dataset.source_metadata),
@@ -617,6 +628,7 @@ class SemanticJudgeTest(unittest.TestCase):
                 json.dumps(
                     {
                         "passed": True,
+                        "issue_scope": "none",
                         "reasons": ["The supplied records are coherent."],
                         "flagged_record_ids": [],
                     }
@@ -1138,7 +1150,7 @@ class SchedulerTest(unittest.TestCase):
                 "root_rate_per_hour": 10.0,
             }
         )
-        test_output_root = DATA_GENERATION / "test_runtime_output"
+        test_output_root = TEST_OUTPUT_ROOT
         test_output_root.mkdir(exist_ok=True)
         output = test_output_root / f"generated_{uuid.uuid4().hex}"
         report = GenerationPipeline(
@@ -1179,11 +1191,62 @@ class SchedulerTest(unittest.TestCase):
                 "candidates.jsonl",
                 "risk_sets.jsonl",
                 "judge_results.jsonl",
+                "semantic_corrections.jsonl",
                 "episode_texts.jsonl",
+                "qa_pairs.jsonl",
                 "validation.jsonl",
+                "training_export_report.json",
             "quality_report.json",
         ):
                 self.assertTrue((output / filename).is_file(), filename)
+        self.assertTrue((output / "training" / "qa_instruction.jsonl").is_file())
+        self.assertTrue((output / "training" / "qa_chat.jsonl").is_file())
+        self.assertEqual(
+            report["quality_report"]["qa_validation_failure_count"], 0
+        )
+
+    def test_ground_truth_qa_and_training_exports_preserve_relation_semantics(self) -> None:
+        package = TransportationPackage(
+            {
+                "nodes_per_context": 12,
+                "context_count": 1,
+                "duration_seconds": 7200.0,
+                "scenario_weights": {"planned_closure": 1.0},
+            }
+        )
+        result = SimulationEngine(
+            package, build_transportation_temporal_models(), max_events=32
+        ).run(0, 43)
+        text_alignment = package.render_episode_text(result)
+        qas = generate_episode_qa(result, text_alignment)
+
+        self.assertTrue(qas)
+        self.assertTrue(all(qa["validation"]["passed"] for qa in qas))
+        self.assertTrue(
+            all(not qa["metadata"]["answers_generated_by_llm"] for qa in qas)
+        )
+        by_type = {qa["qa_type"]: qa for qa in qas}
+        self.assertIn("temporal_order", by_type)
+        self.assertIn("next_event_type", by_type)
+        self.assertIn("direct_predecessors", by_type)
+        self.assertIn("upstream_roots", by_type)
+        self.assertIn("relation_semantics", by_type)
+        self.assertIn("relation_lag", by_type)
+        direct_answer = by_type["direct_predecessors"]["answer"]
+        self.assertTrue(direct_answer)
+        self.assertIn("relation_class", direct_answer[0])
+        self.assertIn("relation_type_id", direct_answer[0])
+        forecast = by_type["next_event_type"]
+        self.assertNotIn(forecast["target_event_id"], forecast["input"])
+        instruction = instruction_training_example(by_type["relation_semantics"])
+        chat = chat_training_example(by_type["relation_semantics"])
+        self.assertEqual(
+            instruction["answer"], by_type["relation_semantics"]["answer"]
+        )
+        self.assertEqual(
+            [message["role"] for message in chat["messages"]],
+            ["system", "user", "assistant"],
+        )
 
     def test_pipeline_llm_rejection_regenerates_with_injected_judge(self) -> None:
         package = TransportationPackage(
@@ -1194,7 +1257,7 @@ class SchedulerTest(unittest.TestCase):
                 "root_rate_per_hour": 10.0,
             }
         )
-        test_output_root = DATA_GENERATION / "test_runtime_output"
+        test_output_root = TEST_OUTPUT_ROOT
         test_output_root.mkdir(exist_ok=True)
         output = test_output_root / f"judge_{uuid.uuid4().hex}"
         judge = _RejectOnceJudge()
@@ -1239,6 +1302,127 @@ class SchedulerTest(unittest.TestCase):
             4,
         )
 
+    def test_pipeline_text_rejection_is_corrected_without_regeneration(self) -> None:
+        package = TransportationPackage(
+            {
+                "nodes_per_context": 12,
+                "context_count": 1,
+                "duration_seconds": 1200.0,
+                "root_rate_per_hour": 10.0,
+                "scenario_weights": {"planned_closure": 1.0},
+            }
+        )
+        test_output_root = TEST_OUTPUT_ROOT
+        test_output_root.mkdir(exist_ok=True)
+        output = test_output_root / f"correction_{uuid.uuid4().hex}"
+        report = GenerationPipeline(
+            package,
+            build_transportation_temporal_models(),
+            {
+                "seed": 23,
+                "episode_count": 2,
+                "max_events_per_episode": 32,
+                "semantic_judge": {
+                    "mode": "llm",
+                    "model": "fake-model",
+                    "base_url": "https://unit.test",
+                    "workers": 2,
+                    "max_generation_attempts": 2,
+                },
+                "semantic_correction": {
+                    "mode": "llm",
+                    "max_rounds": 2,
+                },
+            },
+            output,
+            semantic_judge=_RejectOnceJudge(),
+            semantic_corrector=_AppendSentenceCorrector(),
+        ).run()["quality_report"]
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["generation_retry_count"], 0)
+        self.assertEqual(report["semantic_judge_call_count"], 4)
+        self.assertEqual(report["semantic_correction_call_count"], 2)
+        self.assertEqual(report["semantic_correction_success_count"], 2)
+        self.assertEqual(report["semantic_rejection_scope_counts"]["text"], 2)
+        self.assertEqual(
+            len(
+                (output / "semantic_corrections.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+            ),
+            2,
+        )
+
+    def test_llm_semantic_corrector_preserves_grounded_literals(self) -> None:
+        package = TransportationPackage(
+            {
+                "nodes_per_context": 8,
+                "context_count": 1,
+                "duration_seconds": 1200.0,
+                "root_rate_per_hour": 10.0,
+            }
+        )
+        result = SimulationEngine(
+            package, build_transportation_temporal_models(), max_events=32
+        ).run(0, 29)
+        structured_before = json.dumps(
+            {
+                "events": [item.to_dict() for item in result.events],
+                "relations": [item.to_dict() for item in result.event_relations],
+                "candidates": [item.to_dict() for item in result.candidates],
+                "risk_sets": [item.to_dict() for item in result.risk_sets],
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        text_alignment = package.render_episode_text(result)
+        replacement = text_alignment["sentences"][0] + " This wording is clearer."
+        client = _ResponseClient(
+            [
+                json.dumps(
+                    {
+                        "sentence_updates": [
+                            {"sentence_index": 0, "sentence": replacement}
+                        ]
+                    }
+                )
+            ]
+        )
+        corrected = LLMSemanticCorrector(client).correct(
+            result,
+            text_alignment,
+            package.catalog(),
+            SemanticJudgeResult(
+                outcome="semantic_rejected",
+                passed=False,
+                issue_scope="text",
+                reasons=["The first sentence needs clearer wording."],
+                flagged_record_ids=[result.events[0].event_id],
+            ),
+            correction_round=1,
+        )
+        self.assertTrue(corrected.succeeded)
+        self.assertEqual(
+            corrected.text_alignment["projection_mode"],
+            "llm_corrected_grounded_projection",
+        )
+        self.assertTrue(
+            validate_text_alignment(
+                result, corrected.text_alignment, package.catalog()
+            )["passed"]
+        )
+        structured_after = json.dumps(
+            {
+                "events": [item.to_dict() for item in result.events],
+                "relations": [item.to_dict() for item in result.event_relations],
+                "candidates": [item.to_dict() for item in result.candidates],
+                "risk_sets": [item.to_dict() for item in result.risk_sets],
+            },
+            ensure_ascii=False,
+            sort_keys=True,
+        )
+        self.assertEqual(structured_after, structured_before)
+
     def test_pipeline_quality_gate_rejects_administrative_truncation(self) -> None:
         package = TransportationPackage(
             {
@@ -1249,7 +1433,7 @@ class SchedulerTest(unittest.TestCase):
                 "scenario_weights": {"accident_propagation": 1.0},
             }
         )
-        test_output_root = DATA_GENERATION / "test_runtime_output"
+        test_output_root = TEST_OUTPUT_ROOT
         test_output_root.mkdir(exist_ok=True)
         output = test_output_root / f"truncation_{uuid.uuid4().hex}"
         report = GenerationPipeline(
@@ -1300,6 +1484,7 @@ class _RejectOnceJudge:
             return SemanticJudgeResult(
                 outcome="semantic_rejected",
                 passed=False,
+                issue_scope="text",
                 reasons=[f"Synthetic retry requested for {record_id}."],
                 flagged_record_ids=[record_id],
                 model_id="fake-model",
@@ -1308,10 +1493,44 @@ class _RejectOnceJudge:
         return SemanticJudgeResult(
             outcome="passed",
             passed=True,
+            issue_scope="none",
             reasons=["The supplied records are coherent."],
             flagged_record_ids=[],
             model_id="fake-model",
             provider_base_url="https://unit.test",
+        )
+
+
+class _AppendSentenceCorrector:
+    model_id = "fake-model"
+    provider_base_url = "https://unit.test"
+
+    def correct(
+        self,
+        result,
+        text_alignment,
+        domain_catalog,
+        judge_result,
+        *,
+        correction_round,
+    ):
+        del result, domain_catalog, judge_result
+        corrected = copy.deepcopy(text_alignment)
+        corrected["sentences"][0] += " This wording was corrected."
+        corrected["text"] = " ".join(corrected["sentences"])
+        corrected["projection_mode"] = "llm_corrected_grounded_projection"
+        return SemanticCorrectionResult(
+            outcome="corrected",
+            succeeded=True,
+            text_alignment=corrected,
+            sentence_updates=[
+                {
+                    "sentence_index": 0,
+                    "sentence": corrected["sentences"][0],
+                }
+            ],
+            model_id=self.model_id,
+            provider_base_url=self.provider_base_url,
         )
 
 

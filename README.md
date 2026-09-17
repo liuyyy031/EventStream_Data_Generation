@@ -1,133 +1,102 @@
 # Data Generation
 
-## Current domain-neutral generation core
+This directory has one active generation path. Historical implementations are
+kept under `legacy/` and are not imported by the active runtime.
 
-The current development path is documented in
-[`GENERATION_CORE_DESIGN.md`](GENERATION_CORE_DESIGN.md). It generates an
-auditable sparse context graph, event records, realized event relations,
-complete candidate lifecycles, and a pre-event competing-risk set for every
-fired event. Transportation and healthcare are executable domain packages.
-Run a healthcare batch from the repository root with:
+## Active layout
+
+```text
+data_generation/
+  run_data_generation.py       main generation CLI
+  run_parameter_calibration.py parameter-calibration CLI
+  llm_client.py                shared OpenAI-compatible LLM client
+  generation_core/             domain-neutral records, scheduler, validation,
+                               semantic review/correction, QA and writers
+  domain_packages/             executable domain definitions and priors
+    transportation/
+    healthcare/
+    distributed_systems/       structural placeholder, not yet executable
+  tests/                       tests for the active runtime only
+  docs/                        active design documentation
+  legacy/                      isolated historical implementations
+  artifacts/                   preserved local outputs; never imported
+```
+
+The active runtime uses absolute `data_generation.*` imports. Code in
+`generation_core/`, `domain_packages/`, the two active CLIs, and active tests
+must not import modules from `legacy/` or `artifacts/`.
+
+## Generate data
+
+Run from the repository root:
 
 ```bash
 python data_generation/run_data_generation.py \
-    --domain healthcare \
-    --episode-count 10 \
-    --nodes-per-context 1000 \
-    --output-dir data_generation/output_healthcare
+  --domain transportation \
+  --episode-count 10 \
+  --nodes-per-context 1000 \
+  --seed 20260917 \
+  --judge-mode none \
+  --output-dir data_generation/output_transportation_smoke
 ```
 
-`risk_sets.jsonl` records the shared time--type--entity decision evidence.
-The distributed-systems package currently contains a compileable structural
-contract only. The pipeline described below is the frozen original ST-Bench
-generation path and remains available as a reproducible baseline.
-
-For server-side LLM semantic review, put `LLM_API_KEY` and, when needed,
-`LLM_BASE_URL` in the server `.env` file, then add
-`--judge-mode llm --judge-model <model-id>`. The model argument is mandatory
-in LLM mode; local development uses `--judge-mode none` and makes no API
-request.
-
-Pipeline used to (re)generate [`data/ST-Bench`](../data/ST-Bench).
-
-## Pipeline
-
-```
-Stage 1  Synthesize STS scenarios + run SDE simulation
-            └─> data_generation/batch_output/task_*.{pkl,json}
-
-Stage 2  Generate QA pairs from .pkl files
-            ├─ alignment_QA       → data/alignment/*.jsonl
-            ├─ reasoning_QA       → data/reasoning_before_filter/{entity,etiological,correlation}_*.jsonl
-            └─ forecasting_QA     → data/reasoning_before_filter/forecasting_*.jsonl
-
-Stage 3  Filter samples by length / token count
-            data/reasoning_before_filter/  →  data/reasoning/
-
-Stage 4  CoT rejection sampling (after running inference once)
-            data/reasoning/*_finetune.jsonl  →  *_cot.jsonl, *_rl_new.jsonl
-
-Stage 5  Convert to text / image variants
-            data/reasoning/  →  data/reasoning_text/
-                            →  data/reasoning_image/
-```
-
-`Stage 1` and the reasoning part of `Stage 2` need an LLM API. All LLM calls
-go through [`llm_client.py`](llm_client.py), which speaks the
-OpenAI-compatible chat-completions protocol. Configure it via environment
-variables in the repository `.env` file, which is loaded automatically:
-
-```dotenv
-LLM_API_KEY=<your_api_key>
-LLM_BASE_URL=https://api.deepseek.com
-LLM_MODEL=deepseek-v4-flash
-```
-
-Any provider exposing an OpenAI-style `/chat/completions` endpoint (OpenAI,
-OpenRouter, DeepSeek, Together AI, vLLM, Ollama, …) works by overriding
-`LLM_BASE_URL` and `LLM_MODEL`. All other scripts are pure data processing
-and do not need any API.
-
-## Commands
-
-Run from the repository root after `conda activate stt`.
+Healthcare uses the same engine and output contract:
 
 ```bash
-# Stage 1 — raw STS scenarios (LLM API required)
-python data_generation/run_pipeline.py \
-    --num_tasks 100 --node_counts 3,5,10 --max_workers 8
-
-# Stage 2 — QA generation
-python data_generation/generate_alignment_QA.py
-python data_generation/generate_reasoning_QA.py \
-    --data_dir data_generation/batch_output \
-    --output_dir data/reasoning_before_filter         # LLM API required
-python data_generation/generate_reasoning_forecasting_QA.py \
-    --data_dir data_generation/batch_output \
-    --output_dir data/reasoning_before_filter
-
-# Stage 3 — filter
-python data/filter.py
-
-# Stage 4 — CoT rejection sampling
-#   Prerequisite: run inference first to produce exp/<exp>/generated_answer.json
-for task in reasoning_forecasting reasoning_entity reasoning_etiological reasoning_correlation; do
-    python data_generation/generate_cot.py --task $task --exp <exp_name>
-done
-
-# Stage 5 — text / image variants
-python data/convert_to_text.py  --input_dir data/reasoning --output_dir data/reasoning_text
-python data/convert_to_image.py --input_dir data/reasoning --output_dir data/reasoning_image
+python data_generation/run_data_generation.py \
+  --domain healthcare \
+  --episode-count 10 \
+  --nodes-per-context 1000 \
+  --seed 20260917 \
+  --judge-mode none \
+  --output-dir data_generation/output_healthcare_smoke
 ```
 
-## File reference
+For server-side semantic review and correction, keep credentials in the
+repository `.env` and specify the model explicitly:
 
-| Script                                  | Stage | LLM API | Inputs → Outputs |
-|-----------------------------------------|-------|---------|------------------|
-| `llm_client.py`                         | -     | -       | shared OpenAI-compatible client used by every LLM-calling script |
-| `run_pipeline.py`                       | 1     | yes     | parallel driver that runs `demo_sts_sde.py` N times → `batch_output/task_*.pkl` |
-| `demo_sts_sde.py`                       | 1     | yes     | full 6-Agent + 2-Judge pipeline for a single scenario; importable as a library |
-| `generate_file_list.py`                 | 1     | no      | `batch_output/` → `list_files.json` |
-| `generate_alignment_QA.py`              | 2     | no      | `batch_output/*.pkl` → `data/alignment/` |
-| `generate_reasoning_QA.py`              | 2     | yes     | `batch_output/*.pkl` → `data/reasoning_before_filter/` |
-| `generate_reasoning_forecasting_QA.py`  | 2     | no      | `batch_output/*.pkl` → `data/reasoning_before_filter/` |
-| `../data/filter.py`                     | 3     | no      | `reasoning_before_filter/` → `reasoning/` |
-| `generate_cot.py`                       | 4     | no      | `reasoning/*_finetune.jsonl` + inference outputs → `*_cot.jsonl`, `*_rl_new.jsonl` |
-| `../data/convert_to_text.py`            | 5     | no      | `reasoning/` → `reasoning_text/` |
-| `../data/convert_to_image.py`           | 5     | no      | `reasoning/` → `reasoning_image/` |
+```bash
+python data_generation/run_data_generation.py \
+  --domain transportation \
+  --episode-count 10 \
+  --nodes-per-context 1000 \
+  --seed 20260917 \
+  --judge-mode llm \
+  --judge-model deepseek-v4-flash \
+  --judge-workers 2 \
+  --semantic-correction-mode llm \
+  --output-dir data_generation/output_transportation_llm_smoke
+```
 
-## ST-Bench mapping
+The LLM may review or correct grounded text. It cannot change event records,
+relations, timestamps, entities, candidates, risk sets, or deterministic QA
+answers.
 
-| Subset            | Source files                                |
-|-------------------|---------------------------------------------|
-| `ST-Align/`       | `data/alignment/alignment_{train,test}.jsonl` |
-| `ST-SFT/`         | `data/reasoning/*_finetune.jsonl`           |
-| `ST-CoT/`         | `data/reasoning/*_cot.jsonl`                |
-| `ST-RL/`          | `data/reasoning/*_rl.jsonl`                 |
-| `ST-Test/`        | `data/reasoning/*_test.jsonl`               |
-| `ST-CoT-Text/`    | `data/reasoning_text/*_cot.jsonl`           |
-| `ST-RL-Text/`     | `data/reasoning_text/*_rl.jsonl`            |
-| `ST-CoT-Image/`   | `data/reasoning_image/*_cot.jsonl`          |
-| `ST-RL-Image/`    | `data/reasoning_image/*_rl.jsonl`           |
+## Main outputs
 
-Prompt templates live in [`prompts/`](prompts/).
+| File | Purpose |
+|---|---|
+| `episodes.jsonl` | Episode summaries and generation metadata |
+| `events.jsonl` | Timestamped structured events |
+| `event_relations.jsonl` | Realized typed event-to-event relations |
+| `candidates.jsonl` | Fired, cancelled, and censored candidate lifecycles |
+| `risk_sets.jsonl` | Pre-event time/type/entity competing-risk evidence |
+| `episode_texts.jsonl` | Final grounded event and relation text |
+| `qa_pairs.jsonl` | Ground-truth-derived event-stream understanding QA |
+| `training/qa_instruction.jsonl` | Instruction-format training view |
+| `training/qa_chat.jsonl` | Chat-format training view |
+| `semantic_corrections.jsonl` | Auditable semantic correction rounds |
+| `quality_report.json` | Validation, distribution, and limitation summary |
+
+## Test the active runtime
+
+```bash
+python -m unittest discover -s data_generation/tests -p "test_*.py" -q
+python data_generation/run_data_generation.py --help
+python data_generation/run_parameter_calibration.py --help
+```
+
+Historical commands are documented inside [`legacy/`](legacy/README.md). They
+are retained for provenance only and are not part of current acceptance tests.
+The complete relocation map and dependency rules are in
+[`docs/STRUCTURE.md`](docs/STRUCTURE.md).

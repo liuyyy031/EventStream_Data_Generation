@@ -4,18 +4,24 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
-from domain_packages.healthcare import (
+REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
+
+from data_generation.domain_packages.healthcare import (
     HealthcarePackage,
     build_healthcare_temporal_models,
 )
-from domain_packages.transportation import (
+from data_generation.domain_packages.transportation import (
     TransportationPackage,
     build_transportation_temporal_models,
 )
-from generation_core.pipeline import GenerationPipeline
-from generation_core.semantic_judge import LLMSemanticJudge
+from data_generation.generation_core.pipeline import GenerationPipeline
+from data_generation.generation_core.semantic_correction import LLMSemanticCorrector
+from data_generation.generation_core.semantic_judge import LLMSemanticJudge
 
 
 def main() -> None:
@@ -52,6 +58,23 @@ def main() -> None:
     parser.add_argument("--judge-max-tokens", type=int)
     parser.add_argument("--judge-protocol-max-attempts", type=int)
     parser.add_argument("--judge-max-generation-attempts", type=int)
+    parser.add_argument(
+        "--semantic-correction-mode",
+        choices=("none", "llm"),
+        help=(
+            "For text-scoped Judge rejections, disable correction or rewrite "
+            "grounded text while keeping structured truth frozen."
+        ),
+    )
+    parser.add_argument("--semantic-correction-max-rounds", type=int)
+    parser.add_argument("--semantic-correction-max-tokens", type=int)
+    parser.add_argument("--semantic-correction-protocol-max-attempts", type=int)
+    parser.add_argument(
+        "--qa-export-mode",
+        choices=("none", "ground_truth_template"),
+        help="Disable QA/training export or derive labels from structured truth.",
+    )
+    parser.add_argument("--qa-history-window-events", type=int)
     args = parser.parse_args()
 
     config_path = (
@@ -107,11 +130,34 @@ def main() -> None:
             args.judge_max_generation_attempts
         )
     judge_config.setdefault("max_generation_attempts", 3)
+    correction_config = dict(config.get("semantic_correction", {}))
+    if args.semantic_correction_mode is not None:
+        correction_config["mode"] = args.semantic_correction_mode
+    correction_config.setdefault("mode", "none")
+    if args.semantic_correction_max_rounds is not None:
+        correction_config["max_rounds"] = args.semantic_correction_max_rounds
+    correction_config.setdefault("max_rounds", 2)
+    if args.semantic_correction_max_tokens is not None:
+        correction_config["max_tokens"] = args.semantic_correction_max_tokens
+    correction_config.setdefault("max_tokens", 1800)
+    if args.semantic_correction_protocol_max_attempts is not None:
+        correction_config["protocol_max_attempts"] = (
+            args.semantic_correction_protocol_max_attempts
+        )
+    correction_config.setdefault("protocol_max_attempts", 3)
+    qa_export_config = dict(config.get("qa_export", {}))
+    if args.qa_export_mode is not None:
+        qa_export_config["mode"] = args.qa_export_mode
+    qa_export_config.setdefault("mode", "ground_truth_template")
+    if args.qa_history_window_events is not None:
+        qa_export_config["history_window_events"] = args.qa_history_window_events
+    qa_export_config.setdefault("history_window_events", 32)
     semantic_judge = None
+    semantic_corrector = None
     if judge_config["mode"] == "llm":
         if not judge_config.get("model"):
             parser.error("--judge-model is required when --judge-mode llm")
-        from llm_client import LLMClient
+        from data_generation.llm_client import LLMClient
 
         client = LLMClient(
             base_url=judge_config.get("base_url"),
@@ -124,7 +170,17 @@ def main() -> None:
                 judge_config["protocol_max_attempts"]
             ),
         )
+        if correction_config["mode"] == "llm":
+            semantic_corrector = LLMSemanticCorrector(
+                client,
+                max_tokens=int(correction_config["max_tokens"]),
+                protocol_max_attempts=int(
+                    correction_config["protocol_max_attempts"]
+                ),
+            )
     config["semantic_judge"] = judge_config
+    config["semantic_correction"] = correction_config
+    config["qa_export"] = qa_export_config
     output_dir = args.output_dir or config["output_directory"]
     if domain == "transportation":
         domain_package = TransportationPackage(config.get("domain_config", {}))
@@ -138,6 +194,7 @@ def main() -> None:
         config,
         output_dir,
         semantic_judge=semantic_judge,
+        semantic_corrector=semantic_corrector,
     ).run()
     print(json.dumps(result, ensure_ascii=False, indent=2))
 

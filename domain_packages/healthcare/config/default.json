@@ -10,6 +10,16 @@
     "protocol_max_attempts": 3,
     "max_generation_attempts": 3
   },
+  "semantic_correction": {
+    "mode": "llm",
+    "max_rounds": 2,
+    "max_tokens": 1800,
+    "protocol_max_attempts": 3
+  },
+  "qa_export": {
+    "mode": "ground_truth_template",
+    "history_window_events": 32
+  },
   "quality_reporting": {
     "event_count_buckets": [
       {"label": "empty", "min_events": 0, "max_events": 0},

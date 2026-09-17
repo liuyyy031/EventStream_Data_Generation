@@ -1,5 +1,32 @@
+# Python caches and local environments
 __pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Credentials and local configuration
 .env
-batch_output/
-output*
+.env.*
+!.env.example
+
+# Generated datasets and pipeline output
+artifacts/
+batch_output*/
+output/
+output_*/
+.test_output/
+.test-tmp/
 test_runtime_output/
+legacy/**/.test_output/
+legacy/**/.test_output_*/
+legacy/**/.audit_output_*/
+legacy/**/.test_*.json
+list_files.json
+*.pkl
+
+# Logs, editor state, and OS metadata
+*.log
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

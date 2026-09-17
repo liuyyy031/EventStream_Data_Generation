@@ -4,10 +4,19 @@ from __future__ import annotations
 
 import argparse
 import json
+import sys
+from pathlib import Path
 
-from generation_core.calibration import CalibrationEngine, build_root_event_observations
-from generation_core.mechanisms import load_mechanism_registry
-from generation_core.reference_data import NormalizedJsonlReferenceAdapter
+REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
+
+from data_generation.generation_core.calibration import (
+    CalibrationEngine,
+    build_root_event_observations,
+)
+from data_generation.generation_core.mechanisms import load_mechanism_registry
+from data_generation.generation_core.reference_data import NormalizedJsonlReferenceAdapter
 
 
 def main() -> None:
