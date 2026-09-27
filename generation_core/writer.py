@@ -83,7 +83,11 @@ class DatasetWriter:
                 self._written_context_relations.add(relation.relation_id)
         self._write("episodes", result.episode_record())
         for event in result.events:
-            self._write("events", event.to_dict())
+            payload = event.to_dict()
+            scale = result.time_axis.get("seconds_per_unit", 1.0)
+            payload["time_axis"] = result.time_axis
+            payload["time_values"] = {key.removesuffix("_offset_seconds"): None if value is None else value / scale for key, value in payload["temporal"].items() if key.endswith("_offset_seconds")}
+            self._write("events", payload)
         for relation in result.event_relations:
             self._write("event_relations", relation.to_dict())
         for candidate in result.candidates:

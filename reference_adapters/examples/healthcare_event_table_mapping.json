@@ -1,0 +1,54 @@
+{
+  "schema_version": "generic-tabular-reference-mapping-v1",
+  "domain": "healthcare",
+  "source_dataset_id": "replace_with_dataset_name",
+  "source_version": "replace_with_version",
+  "format": "csv",
+  "timezone": "Asia/Shanghai",
+  "columns": {
+    "stream_id": "encounter_id",
+    "context_id": "patient_id",
+    "timestamp": "event_time",
+    "observed_timestamp": "observed_time",
+    "recorded_timestamp": "recorded_time",
+    "event_type": "event_type",
+    "event_id": "event_id",
+    "entity_id": "patient_id",
+    "parent_event_id": "parent_event_id",
+    "trace_id": "trace_id",
+    "split": "split"
+  },
+  "participant_role": "subject",
+  "event_type_mapping": {
+    "COLLECTION": "healthcare.specimen.collection.completed",
+    "SPECIMEN_COLLECTION": "healthcare.specimen.collection.completed",
+    "RESULT": "healthcare.observation.laboratory.result_recorded",
+    "LAB_RESULT": "healthcare.observation.laboratory.result_recorded",
+    "MONITORING_ALERT": "healthcare.workflow.monitoring_alert.created",
+    "CLINICAL_REVIEW": "healthcare.clinical.review.completed"
+  },
+  "unknown_event_type_policy": "error",
+  "attribute_columns": {
+    "source_system": "source_system"
+  },
+  "context_state_columns": {
+    "care_setting": "care_setting"
+  },
+  "multi_value_delimiter": "|",
+  "window": {
+    "padding_seconds": 1.0,
+    "minimum_duration_seconds": 1.0
+  },
+  "split": {
+    "seed": 20260920,
+    "fractions": {
+      "train": 0.8,
+      "validation": 0.1,
+      "holdout": 0.1
+    },
+    "value_mapping": {
+      "test": "holdout",
+      "val": "validation"
+    }
+  }
+}

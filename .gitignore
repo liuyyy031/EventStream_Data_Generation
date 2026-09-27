@@ -30,3 +30,6 @@ list_files.json
 .vscode/
 .DS_Store
 Thumbs.db
+
+# temp git push
+git_push.md

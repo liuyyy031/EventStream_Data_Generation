@@ -9,6 +9,7 @@ kept under `legacy/` and are not imported by the active runtime.
 data_generation/
   run_data_generation.py       main generation CLI
   run_parameter_calibration.py parameter-calibration CLI
+  run_continuations.py         shared-prefix stochastic continuations
   llm_client.py                shared OpenAI-compatible LLM client
   generation_core/             domain-neutral records, scheduler, validation,
                                semantic review/correction, QA and writers
@@ -23,8 +24,11 @@ data_generation/
 ```
 
 The active runtime uses absolute `data_generation.*` imports. Code in
-`generation_core/`, `domain_packages/`, the two active CLIs, and active tests
+`generation_core/`, `domain_packages/`, the active CLIs, and active tests
 must not import modules from `legacy/` or `artifacts/`.
+
+For scientific time axes, variable horizons, scoped history, explicit observation
+windows and continuation tests, see [generation contract revision](docs/generation_contract_revision.md).
 
 ## Generate data
 
@@ -71,6 +75,21 @@ python data_generation/run_data_generation.py \
 The LLM may review or correct grounded text. It cannot change event records,
 relations, timestamps, entities, candidates, risk sets, or deterministic QA
 answers.
+
+For a formal healthcare run plus an evaluation-only demonstration of the
+semantic correction loop, follow
+[`docs/HEALTHCARE_TEST_PROTOCOL.md`](docs/HEALTHCARE_TEST_PROTOCOL.md). The
+controlled challenge artifacts must never be mixed into training data.
+
+For reference-sequence statistics, explicit-parent delay fitting, calibrated
+evaluation runs, and generic-versus-calibrated holdout comparison, follow
+[`docs/DISTRIBUTION_CALIBRATION.md`](docs/DISTRIBUTION_CALIBRATION.md).
+The calibration CLI accepts either an already-normalized reference directory
+or a raw CSV/JSONL/Parquet event table plus an explicit mapping JSON.  The raw
+path can also emit the normalized three-file audit snapshot automatically.
+The complete baseline and advanced clock library, including periodic,
+self-exciting, refractory, mixture, queue, calendar, interval, and batch
+models, is documented in [`docs/TEMPORAL_MODELS.md`](docs/TEMPORAL_MODELS.md).
 
 ## Main outputs
 

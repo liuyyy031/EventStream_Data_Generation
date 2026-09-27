@@ -9,6 +9,7 @@ is embedded in the common core.
 from __future__ import annotations
 
 import bisect
+import math
 import random
 from collections import Counter, defaultdict, deque
 from dataclasses import dataclass, field
@@ -108,6 +109,10 @@ class RelationLayerSpec:
     max_out_degree: int = 8
     max_in_degree: int | None = None
     community_count: int = 4
+    community_mode: str = "latent"
+    community_attribute: str = "community_id"
+    mixing_weights: Dict[str, Dict[str, float]] | None = None
+    required_pairs: tuple[tuple[str, str], ...] = ()
     within_community_bias: float = 2.0
     degree_sigma: float = 0.7
     hub_fraction: float = 0.05
@@ -131,6 +136,11 @@ class RelationLayerSpec:
             "max_out_degree": self.max_out_degree,
             "max_in_degree": self.max_in_degree,
             "community_count": self.community_count,
+            "community_mode": self.community_mode,
+            "community_attribute": self.community_attribute,
+            "mixing_weights": self.mixing_weights,
+            "required_pairs": [list(pair) for pair in self.required_pairs],
+            "mixing_semantics": "relative_sampling_weights_not_edge_probabilities",
             "within_community_bias": self.within_community_bias,
             "degree_sigma": self.degree_sigma,
             "hub_fraction": self.hub_fraction,
@@ -221,6 +231,9 @@ class SparseHeterogeneousTopologyGenerator:
                         "generation_family": layer.family,
                         "topology_layer_index": layer_index,
                         "synthetic_structure": True,
+                        "community_mode": layer.community_mode,
+                        "source_group": communities[source_id],
+                        "target_group": communities[target_id],
                     },
                 )
                 relation_counter += 1
@@ -267,6 +280,13 @@ class SparseHeterogeneousTopologyGenerator:
             raise ValueError("max_in_degree must be positive when supplied")
         if layer.community_count <= 0 or layer.within_community_bias < 1.0:
             raise ValueError("Invalid community controls")
+        if layer.community_mode not in {"none", "latent", "semantic"}:
+            raise ValueError("community_mode must be none, latent, or semantic")
+        if layer.mixing_weights is not None:
+            if any(not math.isfinite(float(w)) or float(w) < 0 for row in layer.mixing_weights.values() for w in row.values()):
+                raise ValueError("Mixing weights must be finite and non-negative")
+            if not layer.directed and any(float(w) != float(layer.mixing_weights.get(str(b), {}).get(str(a), 0)) for a, row in layer.mixing_weights.items() for b, w in row.items()):
+                raise ValueError("Undirected mixing weights must be symmetric")
         if layer.degree_sigma < 0.0 or not 0.0 <= layer.hub_fraction <= 1.0:
             raise ValueError("Invalid degree-heterogeneity controls")
         if layer.hub_multiplier < 1.0:
@@ -313,6 +333,17 @@ class SparseHeterogeneousTopologyGenerator:
             entity_id: index % min(layer.community_count, len(population))
             for index, entity_id in enumerate(shuffled)
         }
+        if layer.community_mode == "none":
+            communities = {key: 0 for key in population}
+        elif layer.community_mode == "semantic":
+            entity_lookup = {item.entity_id: item for item in entities}
+            if any(layer.community_attribute not in entity_lookup[key].attributes for key in population):
+                raise ValueError("Semantic communities require an explicit entity attribute")
+            communities = {key: str(entity_lookup[key].attributes[layer.community_attribute]) for key in population}
+        def mixing(source_id: str, target_id: str) -> float:
+            if layer.mixing_weights is None:
+                return 1.0
+            return float(layer.mixing_weights.get(str(communities[source_id]), {}).get(str(communities[target_id]), 0.0))
         source_weights = _degree_weights(sources, layer, rng)
         target_weights = _degree_weights(targets, layer, rng)
         target_sampler = _CommunitySampler(targets, target_weights, communities)
@@ -329,6 +360,8 @@ class SparseHeterogeneousTopologyGenerator:
         in_degree: Counter[str] = Counter()
 
         def can_add(source_id: str, target_id: str) -> bool:
+            if mixing(source_id, target_id) <= 0:
+                return False
             if not layer.allow_self_loops and source_id == target_id:
                 return False
             if layer.family == "directed_acyclic" and ranks[source_id] >= ranks[target_id]:
@@ -365,6 +398,10 @@ class SparseHeterogeneousTopologyGenerator:
                 in_degree[source_id] += 1
             return True
 
+        for source_id, target_id in layer.required_pairs:
+            if source_id not in source_ids or target_id not in target_ids or not add(source_id, target_id):
+                raise ValueError("Declared required relation violates layer type, mixing or degree constraints")
+
         if layer.ensure_weak_connectivity and len(population) > 1:
             order = sorted(population) if layer.family == "directed_acyclic" else shuffled
             connected = [order[0]]
@@ -397,6 +434,17 @@ class SparseHeterogeneousTopologyGenerator:
             if layer.within_community_bias <= 1.0
             else 1.0 - 1.0 / layer.within_community_bias
         )
+        # Cache group-level samplers, not an entity-by-entity dense matrix.
+        mixing_samplers = {}
+        if layer.mixing_weights is not None:
+            group_totals = Counter()
+            for item in targets:
+                group_totals[communities[item.entity_id]] += target_weights[item.entity_id]
+            for group in set(communities.values()):
+                row = layer.mixing_weights.get(str(group), {})
+                eligible = [g for g in group_totals if float(row.get(str(g), 0)) > 0]
+                if eligible:
+                    mixing_samplers[group] = _WeightedSampler(eligible, [group_totals[g] * float(row[str(g)]) for g in eligible])
         while len(pairs) < desired_edges and attempts < max_attempts:
             attempts += 1
             source_id = source_sampler.draw(rng)
@@ -405,6 +453,11 @@ class SparseHeterogeneousTopologyGenerator:
                 if rng.random() < same_block_probability
                 else None
             )
+            if layer.mixing_weights is not None:
+                sampler = mixing_samplers.get(communities[source_id])
+                if sampler is None:
+                    continue
+                prefer_community = sampler.draw(rng)
             target_id = target_sampler.draw(rng, prefer_community)
             add(source_id, target_id)
         minimum_acceptable = min(desired_edges, max(0, int(desired_edges * 0.95)))

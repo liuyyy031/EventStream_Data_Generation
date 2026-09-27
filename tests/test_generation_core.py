@@ -230,6 +230,11 @@ class CalibrationContractTest(unittest.TestCase):
         mechanism = self._transport_registry().get(
             "transportation.exogenous_incident_arrival"
         )
+        for window in dataset.windows:
+            window.provenance["observation_complete"] = True
+            window.attributes["exposure_seconds_by_mechanism"] = {mechanism.mechanism_id: window.duration_seconds}
+        for event in dataset.events:
+            event.provenance["mechanism_id"] = mechanism.mechanism_id
         observations = build_root_event_observations(dataset, mechanism)
         train = [item for item in observations if item.split == "train"]
         holdout = [item for item in observations if item.split == "holdout"]

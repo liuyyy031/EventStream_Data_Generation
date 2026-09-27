@@ -10,6 +10,10 @@ from itertools import count
 from typing import Dict, List, Tuple
 
 from .domain import CandidateSpec, DomainPackage, EpisodeContext, RelationSpec
+from .mechanism_reweighting import (
+    MECHANISM_HAZARD_MULTIPLIER,
+    LegalMechanismReweighter,
+)
 from .models import (
     Candidate,
     CandidateStatus,
@@ -22,6 +26,9 @@ from .models import (
 )
 from .temporal import TemporalModelRegistry
 from .validation import validate_episode_result
+from .history import HistoryIndex
+from .time_axis import TimeAxis, sample_duration
+from .continuation import SimulationSnapshot, resample_surviving_clock
 
 
 class SimulationEngine:
@@ -33,16 +40,43 @@ class SimulationEngine:
         temporal_models: TemporalModelRegistry,
         *,
         max_events: int = 10_000,
+        mechanism_reweighter: LegalMechanismReweighter | None = None,
+        time_axis: dict | None = None,
+        observation_duration: dict | None = None,
     ) -> None:
         if max_events <= 0:
             raise ValueError("max_events must be positive")
         self.domain_package = domain_package
         self.temporal_models = temporal_models
         self.max_events = max_events
+        self.mechanism_reweighter = mechanism_reweighter
+        self.time_axis = TimeAxis(**(time_axis or {}))
+        self.observation_duration = observation_duration
 
-    def run(self, episode_index: int, seed: int) -> EpisodeResult:
+    def run(self, episode_index: int, seed: int, *, snapshot: SimulationSnapshot | None = None,
+            stop_after_events: int | None = None, continuation_seed: int | None = None) -> EpisodeResult | SimulationSnapshot:
+        if stop_after_events is not None and not 0 <= stop_after_events < self.max_events:
+            raise ValueError("Snapshot event count must lie below the administrative event cap")
         rng = random.Random(seed)
         context = self.domain_package.create_episode_context(episode_index, seed)
+        support_horizon = context.duration_seconds
+        if self.observation_duration:
+            policy = self.observation_duration
+            maximum = policy.get("maximum", policy.get("value", max(policy.get("values", [0]))))
+            if TimeAxis(kind="relative", unit=policy.get("unit", "second")).to_seconds(maximum) > support_horizon:
+                raise ValueError("Declared observation-duration support exceeds context support horizon")
+        context.duration_seconds = sample_duration(
+            self.observation_duration, support_horizon, random.Random(seed ^ 0x484F5249)
+        )
+        if context.duration_seconds > support_horizon:
+            raise ValueError("Observation duration exceeds context support horizon; increase domain duration_seconds")
+        context.time_axis = self.time_axis.descriptor()
+        if math.ulp(context.duration_seconds) > self.time_axis.to_seconds(self.time_axis.resolution):
+            raise ValueError("Requested time resolution exceeds floating-point precision at this horizon")
+        if self.time_axis.kind != "calendar":
+            context.start_time = self.time_axis.origin_label
+        context.episode_attributes["observation_duration_policy"] = self.observation_duration or {"family": "fixed", "unit": "second", "value": support_horizon}
+        context.episode_attributes["context_support_horizon_seconds"] = support_horizon
         end_time = float(context.duration_seconds)
         candidates: Dict[str, Candidate] = {}
         events: List[EventRecord] = []
@@ -56,6 +90,46 @@ class SimulationEngine:
         relation_counter = count(1)
         risk_set_counter = count(1)
         last_processed_time = 0.0
+        history = HistoryIndex()
+        survival_baselines = {}
+        conditioning_time = 0.0
+        hazard_accounted = {}
+        waiting_log_survival = 0.0
+        if snapshot is not None:
+            if snapshot.domain != context.domain or snapshot.model_descriptors != self.temporal_models.descriptors():
+                raise ValueError("Snapshot domain/model configuration does not match this engine")
+            if snapshot.state["engine_signature"] != (episode_index, seed, self.max_events, getattr(self.domain_package, "config", {}), self.time_axis.descriptor(), self.observation_duration):
+                raise ValueError("Snapshot generation configuration does not match this engine")
+            saved = copy.deepcopy(snapshot.state)
+            context, candidates, events = saved["context"], saved["candidates"], saved["events"]
+            relations, risk_sets, heap = saved["relations"], saved["risk_sets"], saved["heap"]
+            end_time = context.duration_seconds
+            last_processed_time = conditioning_time = saved["time"]
+            survival_baselines = saved["survival_baselines"]
+            hazard_accounted = saved["hazard_accounted"]
+            event_by_id = {event.event_id: event for event in events}
+            history = HistoryIndex(events)
+            sequence = count(saved["next_sequence"])
+            candidate_counter, event_counter = count(len(candidates)+1), count(len(events)+1)
+            relation_counter, risk_set_counter = count(len(relations)+1), count(len(risk_sets)+1)
+            rng.setstate(saved["rng_state"])
+            if continuation_seed is not None:
+                rng = random.Random(continuation_seed)
+                for active in candidates.values():
+                    if active.status is CandidateStatus.SCHEDULED:
+                        resample_surviving_clock(active, self.temporal_models.get(active.temporal_model_ref), conditioning_time, end_time, rng)
+                heap = [row for row in heap if row[4].startswith("__wake_")]
+                heapq.heapify(heap)
+                context.episode_attributes.update({"prefix_group_id": saved["prefix_group_id"], "continuation_seed": continuation_seed,
+                    "continuation_semantics": "conditional_stochastic_not_causal_counterfactual", "prefix_event_ids": list(event_by_id)})
+
+        def capture():
+            return SimulationSnapshot(copy.deepcopy({"context": context, "candidates": candidates, "events": events,
+                "relations": relations, "risk_sets": risk_sets, "heap": heap, "time": last_processed_time,
+                "survival_baselines": survival_baselines, "rng_state": rng.getstate(), "next_sequence": next(sequence),
+                "hazard_accounted": hazard_accounted,
+                "engine_signature": (episode_index, seed, self.max_events, getattr(self.domain_package, "config", {}), self.time_axis.descriptor(), self.observation_duration),
+                "prefix_group_id": f"{context.episode_id}:seed:{seed}:prefix:{len(events)}"}), self.temporal_models.descriptors(), context.domain)
 
         def push(candidate: Candidate) -> None:
             if candidate.scheduled_time is None:
@@ -71,6 +145,48 @@ class SimulationEngine:
                     candidate.revision,
                 ),
             )
+
+        def wake_at(when):
+            if when is not None and last_processed_time < when <= end_time:
+                serial = next(sequence)
+                heapq.heappush(heap, (float(when), -100, 0, serial, f"__wake_{serial}", 0))
+
+        def accrue_survival(now):
+            nonlocal waiting_log_survival
+            for active in candidates.values():
+                if active.status is not CandidateStatus.SCHEDULED or active.activation_time > now:
+                    continue
+                measure = self.temporal_models.measure(active, now)
+                if measure.get("clock_kind") == "stochastic_continuous":
+                    cumulative = float(measure["cumulative_hazard"])
+                    waiting_log_survival -= max(0.0, cumulative - hazard_accounted.get(active.candidate_id, 0.0))
+                    hazard_accounted[active.candidate_id] = cumulative
+
+        def refresh(now, fired=None):
+            for active in list(candidates.values()):
+                if active.status is not CandidateStatus.SCHEDULED or active.activation_time > now:
+                    continue
+                group = fired.attributes.get("exclusive_group_id") if fired else None
+                if group is not None and active.attributes.get("exclusive_group_id") == group:
+                    _terminate_candidate(active, "explicit_mutual_exclusion", fired.fired_event_id)
+                    continue
+                update = self.domain_package.revalidate_candidate(active, context, event_by_id, now)
+                if update.context_evidence is not None:
+                    active.context_evidence = copy.deepcopy(update.context_evidence)
+                if not update.valid:
+                    _terminate_candidate(active, update.reason, update.superseded_by_event_id)
+                    continue
+                model = self.temporal_models.get(active.temporal_model_ref)
+                if model.covariate_mode.value == "time_varying_hazard":
+                    inputs = dict(update.temporal_inputs or active.temporal_inputs)
+                    for key in (MECHANISM_HAZARD_MULTIPLIER, "history_spec"):
+                        if key in active.temporal_inputs:
+                            inputs[key] = active.temporal_inputs[key]
+                    probe = copy.copy(active)
+                    probe.temporal_inputs = inputs
+                    self.temporal_models.update(active, now, history.inputs(probe, now))
+                    active.revision += 1
+                    push(active)
 
         def activate(spec: CandidateSpec) -> Candidate:
             activation = _resolve_activation_time(spec, event_by_id)
@@ -93,6 +209,19 @@ class SimulationEngine:
                 attributes=copy.deepcopy(spec.attributes),
                 provenance=copy.deepcopy(spec.provenance),
             )
+            if self.mechanism_reweighter is not None:
+                model = self.temporal_models.get(candidate.temporal_model_ref)
+                self.mechanism_reweighter.apply(
+                    candidate,
+                    event_by_id=event_by_id,
+                    event_history=events,
+                    temporal_family=model.family,
+                )
+            candidate.temporal_inputs = history.inputs(candidate, activation)
+            model = self.temporal_models.get(candidate.temporal_model_ref)
+            history_spec = candidate.temporal_inputs.get("history_spec", {})
+            if history_spec and set(getattr(model, "coefficients", {})) & {"history_decayed_count", "time_since_last_event"}:
+                raise ValueError("Continuously changing history features require an integrable temporal model; use self_exciting_hazard for exponential decay")
             self.temporal_models.initialize(candidate, rng)
             if (
                 candidate.scheduled_time is not None
@@ -103,13 +232,38 @@ class SimulationEngine:
                 )
             candidates[candidate.candidate_id] = candidate
             push(candidate)
+            wake_at(activation)
+            if history_spec.get("lookback_seconds") is not None:
+                lookback = float(history_spec["lookback_seconds"])
+                if not math.isfinite(lookback) or lookback < 0:
+                    raise ValueError("History lookback must be finite and non-negative")
+                for offset in candidate.temporal_inputs.get("history_event_offsets", []):
+                    wake_at(math.nextafter(offset + lookback, math.inf))
             return candidate
 
-        for spec in self.domain_package.seed_candidates(context, rng):
-            activate(spec)
+        if snapshot is None:
+            for relation in context.context_relations:
+                wake_at(relation.valid_from_offset_seconds)
+                if relation.valid_to_offset_seconds is not None:
+                    wake_at(math.nextafter(relation.valid_to_offset_seconds, math.inf))
+            for spec in self.domain_package.seed_candidates(context, rng):
+                activate(spec)
+        elif continuation_seed is not None:
+            for active in candidates.values():
+                if active.status is CandidateStatus.SCHEDULED:
+                    push(active)
+        if stop_after_events == len(events):
+            return capture()
 
         while heap and len(events) < self.max_events:
             due, _, _, _, candidate_id, revision = heapq.heappop(heap)
+            if candidate_id.startswith("__wake_"):
+                last_processed_time = due
+                accrue_survival(due)
+                refresh(due)
+                # Keep survival conditioned on the previous realized event;
+                # scheduled covariate changes do not reset the waiting interval.
+                continue
             candidate = candidates[candidate_id]
             if candidate.status is not CandidateStatus.SCHEDULED:
                 continue
@@ -120,6 +274,7 @@ class SimulationEngine:
             if due > end_time:
                 break
             last_processed_time = due
+            accrue_survival(due)
 
             # Recheck every currently active alternative at the decision time.
             # This keeps expired context links and stale state predicates out of
@@ -152,6 +307,9 @@ class SimulationEngine:
                 candidates=candidates,
                 at_time=due,
                 temporal_models=self.temporal_models,
+                survival_baselines=survival_baselines,
+                conditioning_time=conditioning_time,
+                interval_log_survival=waiting_log_survival,
             )
             risk_sets.append(risk_set)
             candidate.risk_set_id = risk_set.risk_set_id
@@ -181,6 +339,13 @@ class SimulationEngine:
             candidate.terminal_reason = "candidate_fired"
             events.append(event)
             event_by_id[event.event_id] = event
+            history.add(event)
+            wake_at(event.temporal.observed_at_offset_seconds)
+            wake_at(event.temporal.recorded_at_offset_seconds)
+            for active in candidates.values():
+                spec = active.temporal_inputs.get("history_spec", {})
+                if active.status is CandidateStatus.SCHEDULED and spec.get("lookback_seconds") is not None:
+                    wake_at(math.nextafter(due + float(spec["lookback_seconds"]), math.inf))
 
             for spec in self.domain_package.relation_specs(
                 event, candidate, context, event_by_id
@@ -201,33 +366,30 @@ class SimulationEngine:
             # Existing stochastic clocks are revalidated after every state
             # change.  Time-varying hazards preserve their original random
             # threshold and accumulated hazard instead of redrawing a delay.
-            for active in list(candidates.values()):
-                if active.status is not CandidateStatus.SCHEDULED:
-                    continue
-                update = self.domain_package.revalidate_candidate(
-                    active, context, event_by_id, due
-                )
-                if update.context_evidence is not None:
-                    active.context_evidence = copy.deepcopy(update.context_evidence)
-                if not update.valid:
-                    _terminate_candidate(
-                        active, update.reason, update.superseded_by_event_id
-                    )
-                    continue
-                model = self.temporal_models.get(active.temporal_model_ref)
-                if model.covariate_mode.value == "time_varying_hazard":
-                    inputs = update.temporal_inputs or active.temporal_inputs
-                    self.temporal_models.update(active, due, inputs)
-                    active.revision += 1
-                    push(active)
+            refresh(due, candidate)
 
             for spec in self.domain_package.spawn_candidates(
                 event, candidate, context, event_by_id, rng
             ):
                 activate(spec)
 
+            conditioning_time = due
+            waiting_log_survival = 0.0
+            survival_baselines = {
+                item.candidate_id: self.temporal_models.measure(item, due).get("survival_probability", 1.0)
+                for item in candidates.values()
+                if item.status is CandidateStatus.SCHEDULED and item.activation_time <= due
+            }
+            if stop_after_events == len(events):
+                return capture()
+
+        if stop_after_events is not None:
+            raise ValueError("Episode ended before the requested prefix length; use a shorter prefix")
+
         termination_reason = (
-            "event_limit_reached" if len(events) >= self.max_events else "observation_window_ended"
+            "event_limit_reached" if len(events) >= self.max_events else
+            "candidate_set_exhausted" if not any(c.status is CandidateStatus.SCHEDULED for c in candidates.values()) else
+            "observation_window_ended"
         )
         censoring_time = (
             last_processed_time
@@ -257,7 +419,20 @@ class SimulationEngine:
             termination_reason=termination_reason,
             context_attributes=copy.deepcopy(context.context_attributes),
             episode_attributes=copy.deepcopy(context.episode_attributes),
+            time_axis=context.time_axis,
         )
+        depths = {}
+        parents_by_event = {c.fired_event_id: c.parent_event_ids for c in candidates.values() if c.fired_event_id}
+        for event in events:
+            parents = parents_by_event[event.event_id]
+            depths[event.event_id] = max((depths[p] + 1 for p in parents), default=0)
+        result.episode_attributes["length_summary"] = {
+            "context_entity_count": len(context.entities), "realized_event_count": len(events),
+            "max_causal_depth": max(depths.values(), default=0),
+            "observation_duration_seconds": end_time,
+            "administrative_event_cap": self.max_events,
+            "natural_candidate_exhaustion": not any(c.status is CandidateStatus.RIGHT_CENSORED for c in candidates.values()),
+        }
         result.validation = validate_episode_result(
             result, self.domain_package.catalog()
         )
@@ -272,6 +447,9 @@ def _build_risk_set(
     candidates: Dict[str, Candidate],
     at_time: float,
     temporal_models: TemporalModelRegistry,
+    survival_baselines: dict | None = None,
+    conditioning_time: float = 0.0,
+    interval_log_survival: float | None = None,
 ) -> RiskSetRecord:
     active = sorted(
         (
@@ -362,18 +540,20 @@ def _build_risk_set(
             joint_log_survival = sum(
                 math.log(
                     max(
-                        float(item.clock_measure.get("survival_probability", 1.0)),
+                        min(1.0, float(item.clock_measure.get("survival_probability", 1.0)) / max(float((survival_baselines or {}).get(item.candidate_id, 1.0)), 1e-300)),
                         1e-300,
                     )
                 )
                 for item in continuous
             )
-            joint_survival = math.exp(max(-745.0, joint_log_survival))
+            joint_survival = math.exp(max(-745.0, joint_log_survival if interval_log_survival is None else interval_log_survival))
             factorization = {
                 "basis": "one_shared_competing-risk_set",
                 "continuous_hazard_factorization_applicable": True,
                 "history_conditioning": "candidate_activation_parents_context_and_state",
                 "time": {
+                    "conditioned_at_offset_seconds": conditioning_time,
+                    "survival_semantics": "conditional_since_previous_event_under_current_risk_set",
                     "total_hazard_per_second": total_hazard,
                     "joint_survival_probability": joint_survival,
                     "next_event_time_density_per_second": total_hazard

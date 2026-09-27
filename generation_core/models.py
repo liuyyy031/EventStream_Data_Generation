@@ -274,9 +274,12 @@ class EpisodeResult:
     context_attributes: Dict[str, Any] = field(default_factory=dict)
     episode_attributes: Dict[str, Any] = field(default_factory=dict)
     validation: Dict[str, Any] = field(default_factory=dict)
+    time_axis: Dict[str, Any] = field(default_factory=dict)
 
     def episode_record(self) -> Dict[str, Any]:
         return {
+            "time_axis": self.time_axis,
+            "duration": self.duration_seconds / self.time_axis.get("seconds_per_unit", 1.0),
             "episode_id": self.episode_id,
             "domain": self.domain,
             "context_id": self.context_id,

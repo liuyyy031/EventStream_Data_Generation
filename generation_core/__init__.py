@@ -1,5 +1,16 @@
 """Domain-neutral building blocks for synthetic event-stream generation."""
 
+from .advanced_temporal import (
+    AvailabilityWindowDelayModel,
+    BatchScheduledTimeModel,
+    ConditionalLogNormalMixtureModel,
+    IntervalTimeModel,
+    LogNormalMixtureComponent,
+    PeriodicPiecewiseHazardModel,
+    RefractoryHazardModel,
+    ResourceQueueDelayModel,
+    SelfExcitingHazardModel,
+)
 from .calibration import (
     CalibrationBundle,
     CalibrationEngine,
@@ -10,7 +21,15 @@ from .calibration import (
 )
 from .domain import CandidateSpec, DomainPackage, EpisodeContext, ObservationPlan, RelationSpec
 from .domain_spec import LoadedDomainSpec, load_domain_spec
+from .distribution_calibration import (
+    apply_sequence_calibration_bundle,
+    compare_reference_to_generation,
+    fit_sequence_calibration_bundle,
+    summarize_generated_output,
+    summarize_reference_sequences,
+)
 from .mechanisms import MechanismRegistry, MechanismSpec, load_mechanism_registry
+from .mechanism_reweighting import LegalMechanismReweighter
 from .models import (
     Candidate,
     CandidateStatus,
@@ -46,6 +65,10 @@ from .reference_data import (
     ReferenceWindow,
     validate_reference_dataset,
 )
+from .tabular_reference_adapter import (
+    GenericTabularReferenceAdapter,
+    write_normalized_reference_dataset,
+)
 from .temporal import (
     ConditionalGammaModel,
     ConditionalWeibullModel,
@@ -62,6 +85,15 @@ from .topology import (
 )
 
 __all__ = [
+    "AvailabilityWindowDelayModel",
+    "BatchScheduledTimeModel",
+    "ConditionalLogNormalMixtureModel",
+    "IntervalTimeModel",
+    "LogNormalMixtureComponent",
+    "PeriodicPiecewiseHazardModel",
+    "RefractoryHazardModel",
+    "ResourceQueueDelayModel",
+    "SelfExcitingHazardModel",
     "Candidate",
     "CandidateSpec",
     "CandidateStatus",
@@ -71,10 +103,15 @@ __all__ = [
     "ContextEvidence",
     "ContextRelation",
     "DomainPackage",
+    "apply_sequence_calibration_bundle",
+    "compare_reference_to_generation",
+    "fit_sequence_calibration_bundle",
     "LoadedDomainSpec",
     "MechanismRegistry",
     "MechanismSpec",
+    "LegalMechanismReweighter",
     "NormalizedJsonlReferenceAdapter",
+    "GenericTabularReferenceAdapter",
     "Entity",
     "EpisodeContext",
     "EpisodeResult",
@@ -117,4 +154,7 @@ __all__ = [
     "load_mechanism_registry",
     "relation_is_active",
     "validate_reference_dataset",
+    "write_normalized_reference_dataset",
+    "summarize_generated_output",
+    "summarize_reference_sequences",
 ]

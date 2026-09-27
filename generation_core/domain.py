@@ -31,6 +31,7 @@ class EpisodeContext:
     context_attributes: Dict[str, Any] = field(default_factory=dict)
     episode_attributes: Dict[str, Any] = field(default_factory=dict)
     relation_index: ContextRelationIndex = field(init=False, repr=False)
+    time_axis: Dict[str, Any] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
         self.relation_index = ContextRelationIndex(self.context_relations)

@@ -257,16 +257,25 @@ def build_root_event_observations(
 
     if not mechanism.is_root or mechanism.parent_combination != "none":
         raise ValueError("Root observation construction requires an exogenous mechanism")
+    for window in dataset.windows:
+        if window.provenance.get("observation_complete") is not True:
+            raise ValueError("Root-rate fitting requires explicitly complete observation windows, not inferred event spans")
+        if mechanism.mechanism_id not in window.attributes.get("exposure_seconds_by_mechanism", {}):
+            raise ValueError("Declare exposure_seconds_by_mechanism (including at-risk population and observation gaps)")
     events_by_window: Dict[str, list[str]] = {}
     for event in dataset.events:
         if event.event_type_id == mechanism.target_event_type_id:
+            if event.explicit_parent_record_ids:
+                continue
+            if event.provenance.get("mechanism_id") != mechanism.mechanism_id:
+                raise ValueError("Matching event type alone does not establish root-mechanism attribution")
             events_by_window.setdefault(event.window_id, []).append(event.source_record_id)
     return [
         CalibrationObservation(
             observation_id=f"{mechanism.mechanism_id}:{window.window_id}",
             mechanism_id=mechanism.mechanism_id,
             split=window.split,
-            exposure_seconds=window.duration_seconds,
+            exposure_seconds=float(window.attributes["exposure_seconds_by_mechanism"][mechanism.mechanism_id]),
             event_count=len(events_by_window.get(window.window_id, ())),
             context_id=window.context_id,
             window_id=window.window_id,

@@ -11,6 +11,7 @@ import copy
 import math
 import random
 from collections import defaultdict
+from dataclasses import replace
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -703,24 +704,28 @@ def _build_healthcare_context(context_id: str, node_count: int, seed: int, durat
                 attributes=attributes,
                 provenance={"fit_status": "synthetic_structure", "not_a_real_person_or_care_record": True},
             ))
+    required = _ensure_minimum_care_bundle(context_id, entities, [])
+    layers = [replace(layer, required_pairs=tuple(
+        (edge.source_entity_id, edge.target_entity_id) for edge in required
+        if edge.relation_type_id == layer.relation_type_id
+    )) for layer in domain_spec.compile_relation_layers()]
     generated = SparseHeterogeneousTopologyGenerator().generate(
         context_id=context_id,
         domain="healthcare",
         entities=entities,
-        layers=domain_spec.compile_relation_layers(),
+        layers=layers,
         seed=seed ^ 0x4845414C,
         observation_window_seconds=duration_seconds,
     )
     relations = list(generated.relations)
-    supplemental = _ensure_minimum_care_bundle(context_id, entities, relations)
-    relations.extend(supplemental)
     profile = {
         "profile_id": f"{context_id}_typed_care_context",
         "generator_family": "sparse_typed_relation_layers",
         "global_connectivity_required": False,
         "spatial_coordinates_required": False,
         "entity_type_counts": type_counts,
-        "supplemental_minimum_bundle_relation_count": len(supplemental),
+        "supplemental_minimum_bundle_relation_count": 0,
+        "required_bundle_edges_validated_in_core": True,
         "observed_statistics": {**generated.statistics, "relation_count_after_minimum_bundle": len(relations)},
     }
     return entities, relations, profile

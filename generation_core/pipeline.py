@@ -11,6 +11,7 @@ from statistics import mean, median
 from typing import Any, Dict, List, Tuple
 
 from .domain import DomainPackage
+from .mechanism_reweighting import LegalMechanismReweighter
 from .models import EpisodeResult
 from .qa_export import (
     chat_training_example,
@@ -43,6 +44,7 @@ class GenerationPipeline:
         output_dir: str | Path,
         semantic_judge: SemanticJudge | None = None,
         semantic_corrector: SemanticCorrector | None = None,
+        mechanism_reweighter: LegalMechanismReweighter | None = None,
     ) -> None:
         self.domain_package = domain_package
         self.temporal_models = temporal_models
@@ -51,6 +53,7 @@ class GenerationPipeline:
         self.output_dir = _unique_output_directory(self.requested_output_dir)
         self.semantic_judge = semantic_judge
         self.semantic_corrector = semantic_corrector
+        self.mechanism_reweighter = mechanism_reweighter
 
     def run(self) -> Dict[str, Any]:
         episode_count = int(self.config.get("episode_count", 1))
@@ -100,7 +103,12 @@ class GenerationPipeline:
             )
         )
         engine = SimulationEngine(
-            self.domain_package, self.temporal_models, max_events=max_events
+            self.domain_package,
+            self.temporal_models,
+            max_events=max_events,
+            mechanism_reweighter=self.mechanism_reweighter,
+            time_axis=self.config.get("time_axis"),
+            observation_duration=self.config.get("observation_duration"),
         )
         domain_catalog = self.domain_package.catalog()
         resolved_judge_model = (
@@ -169,7 +177,15 @@ class GenerationPipeline:
                 "qa_answers_are_derived_from_structured_truth_not_llm": True,
                 "training_inputs_use_final_accepted_grounded_text": True,
                 "statistical_realism_requires_domain_fit_and_holdout_validation": True,
+                "sequential_transition_statistics_do_not_define_causal_edges": True,
+                "transition_reweighting_only_modifies_already_legal_continuous_time_candidates": True,
+                "unobserved_legal_transitions_remain_available": True,
             },
+            "mechanism_reweighting": (
+                self.mechanism_reweighter.descriptor()
+                if self.mechanism_reweighter is not None
+                else {"enabled": False}
+            ),
             "semantic_judge": {
                 "mode": judge_mode,
                 "model": resolved_judge_model,
@@ -446,6 +462,9 @@ class GenerationPipeline:
         qa_pair_count = 0
         qa_validation_failure_count = 0
         qa_type_counts: Counter[str] = Counter()
+        mechanism_reweighting_status_counts: Counter[str] = Counter()
+        mechanism_reweighting_reason_counts: Counter[str] = Counter()
+        applied_mechanism_multipliers: List[float] = []
         all_qa_records: List[Dict[str, Any]] = []
         with DatasetWriter(self.output_dir) as writer:
             writer.write_manifest(
@@ -516,6 +535,24 @@ class GenerationPipeline:
                 candidate_status_counts.update(
                     candidate.status.value for candidate in result.candidates
                 )
+                for candidate in result.candidates:
+                    reweighting = candidate.provenance.get(
+                        "mechanism_reweighting"
+                    )
+                    if not isinstance(reweighting, dict):
+                        continue
+                    status = str(reweighting.get("status", "unknown"))
+                    reason = str(reweighting.get("reason", "unspecified"))
+                    mechanism_reweighting_status_counts[status] += 1
+                    mechanism_reweighting_reason_counts[reason] += 1
+                    if status == "applied":
+                        applied_mechanism_multipliers.append(
+                            float(
+                                reweighting.get(
+                                    "applied_hazard_multiplier", 1.0
+                                )
+                            )
+                        )
                 risk_set_selection_mode_counts.update(
                     risk_set.selection_mode for risk_set in result.risk_sets
                 )
@@ -574,12 +611,27 @@ class GenerationPipeline:
                 "instruction_training_example_count": qa_pair_count,
                 "chat_training_example_count": qa_pair_count,
                 "total_event_count": total_events,
+                "time_axis": engine.time_axis.descriptor(),
+                "observation_duration_seconds": _numeric_summary([result.duration_seconds for result, _ in accepted.values()]),
+                "max_causal_depth": _numeric_summary([result.episode_attributes["length_summary"]["max_causal_depth"] for result, _ in accepted.values()]),
                 "episode_event_count_distribution": event_count_distribution,
                 "event_type_counts": dict(event_type_counts),
                 "relation_type_counts": dict(relation_type_counts),
                 "context_grounded_event_relation_count": context_grounded_event_relation_count,
                 "evaluated_state_predicate_count": evaluated_state_predicate_count,
                 "candidate_status_counts": dict(candidate_status_counts),
+                "mechanism_reweighting": {
+                    "enabled": self.mechanism_reweighter is not None,
+                    "status_counts": dict(
+                        sorted(mechanism_reweighting_status_counts.items())
+                    ),
+                    "reason_counts": dict(
+                        sorted(mechanism_reweighting_reason_counts.items())
+                    ),
+                    "applied_multiplier_summary": _numeric_summary(
+                        applied_mechanism_multipliers
+                    ),
+                },
                 "risk_set_selection_mode_counts": dict(
                     risk_set_selection_mode_counts
                 ),
@@ -629,7 +681,14 @@ class GenerationPipeline:
                     {"context_id": context_id, **profile}
                     for context_id, profile in sorted(topology_contexts.items())
                 ],
-                "statistical_realism": "not_claimed_without_domain_fit_and_holdout_validation",
+                "distribution_calibration": deepcopy(
+                    self.config.get(
+                        "distribution_calibration", {"mode": "generic_prior"}
+                    )
+                ),
+                "statistical_realism": _statistical_realism_status(
+                    self.config.get("distribution_calibration", {})
+                ),
                 "validity_scope": "mechanism_coherent_synthetic_generation_not_reference_dataset_replication",
             }
             writer.write_json("quality_report.json", quality)
@@ -718,6 +777,26 @@ class GenerationPipeline:
             result.validation["errors"].extend(text_validation["errors"])
             result.validation["passed"] = False
         return result, text_alignment
+
+
+def _statistical_realism_status(calibration: Dict[str, Any]) -> str:
+    if calibration.get("mode") != "sequence_calibration_bundle":
+        return "not_claimed_without_domain_fit_and_holdout_validation"
+    if calibration.get("parameter_status") == "accepted_for_generation":
+        return "reference_calibrated_accepted_pending_run_specific_holdout_comparison"
+    return "reference_calibrated_pending_domain_acceptance_and_holdout_comparison"
+
+
+def _numeric_summary(values: List[float]) -> Dict[str, Any]:
+    if not values:
+        return {"count": 0, "min": None, "max": None, "mean": None, "median": None}
+    return {
+        "count": len(values),
+        "min": min(values),
+        "max": max(values),
+        "mean": mean(values),
+        "median": median(values),
+    }
 
 
 def _unique_output_directory(path: Path) -> Path:

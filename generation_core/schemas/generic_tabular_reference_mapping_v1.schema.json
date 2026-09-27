@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://streasoner.local/schemas/generic_tabular_reference_mapping_v1.schema.json",
+  "title": "Raw tabular event-data mapping",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "domain",
+    "source_dataset_id",
+    "source_version",
+    "columns"
+  ],
+  "properties": {
+    "schema_version": {"const": "generic-tabular-reference-mapping-v1"},
+    "domain": {"type": "string", "minLength": 1},
+    "source_dataset_id": {"type": "string", "minLength": 1},
+    "source_version": {"type": "string", "minLength": 1},
+    "format": {"enum": ["csv", "jsonl", "parquet"]},
+    "encoding": {"type": "string", "minLength": 1},
+    "timezone": {"type": "string", "minLength": 1},
+    "timestamp_format": {"type": "string", "minLength": 1},
+    "timestamp_unit": {"enum": ["seconds", "milliseconds"]},
+    "sequence_scope": {"enum": ["window", "entity", "process"]},
+    "columns": {
+      "type": "object",
+      "required": ["stream_id", "timestamp", "event_type"],
+      "properties": {
+        "stream_id": {"type": "string", "minLength": 1},
+        "context_id": {"type": "string", "minLength": 1},
+        "timestamp": {"type": "string", "minLength": 1},
+        "observed_timestamp": {"type": "string", "minLength": 1},
+        "recorded_timestamp": {"type": "string", "minLength": 1},
+        "event_type": {"type": "string", "minLength": 1},
+        "event_id": {"type": "string", "minLength": 1},
+        "mechanism_id": {"type": "string", "minLength": 1},
+        "entity_id": {"type": "string", "minLength": 1},
+        "parent_event_id": {"type": "string", "minLength": 1},
+        "trace_id": {"type": "string", "minLength": 1},
+        "scenario_family": {"type": "string", "minLength": 1},
+        "split": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "participants": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["column", "role"],
+        "properties": {
+          "column": {"type": "string", "minLength": 1},
+          "role": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    },
+    "participant_role": {"type": "string", "minLength": 1},
+    "event_type_mapping": {
+      "type": "object",
+      "additionalProperties": {"type": "string", "minLength": 1}
+    },
+    "unknown_event_type_policy": {"enum": ["error", "keep"]},
+    "attribute_columns": {
+      "oneOf": [
+        {"type": "array", "items": {"type": "string", "minLength": 1}},
+        {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}}
+      ]
+    },
+    "context_state_columns": {
+      "oneOf": [
+        {"type": "array", "items": {"type": "string", "minLength": 1}},
+        {"type": "object", "additionalProperties": {"type": "string", "minLength": 1}}
+      ]
+    },
+    "multi_value_delimiter": {"type": "string", "minLength": 1},
+    "window": {
+      "type": "object",
+      "properties": {
+        "padding_seconds": {"type": "number", "minimum": 0},
+        "minimum_duration_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "allow_overlapping_windows": {"type": "boolean"},
+        "records": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["stream_id", "context_id", "split", "start_time", "duration_seconds"],
+            "properties": {
+              "stream_id": {"type": "string", "minLength": 1},
+              "context_id": {"type": "string", "minLength": 1},
+              "split": {"enum": ["train", "validation", "holdout"]},
+              "start_time": {"type": "string", "format": "date-time"},
+              "duration_seconds": {"type": "number", "exclusiveMinimum": 0},
+              "observation_complete": {"type": "boolean"},
+              "attributes": {"type": "object"}
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "split": {
+      "type": "object",
+      "properties": {
+        "seed": {"type": "integer"},
+        "fractions": {
+          "type": "object",
+          "properties": {
+            "train": {"type": "number", "minimum": 0},
+            "validation": {"type": "number", "minimum": 0},
+            "holdout": {"type": "number", "minimum": 0}
+          },
+          "additionalProperties": false
+        },
+        "value_mapping": {
+          "type": "object",
+          "additionalProperties": {"enum": ["train", "validation", "holdout"]}
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

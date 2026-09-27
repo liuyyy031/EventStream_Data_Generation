@@ -20,6 +20,13 @@ from data_generation.domain_packages.transportation import (
     build_transportation_temporal_models,
 )
 from data_generation.generation_core.pipeline import GenerationPipeline
+from data_generation.generation_core.distribution_calibration import (
+    VALID_CALIBRATION_COMPONENTS,
+    apply_sequence_calibration_bundle,
+)
+from data_generation.generation_core.mechanism_reweighting import (
+    LegalMechanismReweighter,
+)
 from data_generation.generation_core.semantic_correction import LLMSemanticCorrector
 from data_generation.generation_core.semantic_judge import LLMSemanticJudge
 
@@ -44,6 +51,45 @@ def main() -> None:
     parser.add_argument("--max-events-per-episode", type=int)
     parser.add_argument("--scenario-family")
     parser.add_argument("--seed", type=int)
+    parser.add_argument("--time-unit", choices=("second", "millisecond", "minute", "hour", "day", "year", "kyr", "Myr"))
+    parser.add_argument("--time-axis-kind", choices=("calendar", "relative", "deep_time"))
+    parser.add_argument("--duration-min", type=float, help="Uniform observation horizon lower bound, in --time-unit")
+    parser.add_argument("--duration-max", type=float, help="Uniform observation horizon upper bound, in --time-unit")
+    parser.add_argument(
+        "--calibration-bundle",
+        help="Apply a sequence-calibration-bundle-v1 before generation.",
+    )
+    parser.add_argument(
+        "--allow-pending-calibration",
+        action="store_true",
+        help=(
+            "Allow an empirically fitted bundle that is still pending domain "
+            "acceptance. Intended for controlled evaluation runs only."
+        ),
+    )
+    parser.add_argument(
+        "--calibration-components",
+        default="scenario,temporal,mechanism_reweighting",
+        help=(
+            "Comma-separated calibration components: scenario, temporal, "
+            "mechanism_reweighting. This supports component-level ablations."
+        ),
+    )
+    parser.add_argument(
+        "--mechanism-reweighting-mode",
+        choices=("first_order", "first_second_order"),
+        default="first_second_order",
+    )
+    parser.add_argument("--mechanism-reweighting-strength", type=float, default=1.0)
+    parser.add_argument(
+        "--mechanism-reweighting-min-history-count", type=int, default=5
+    )
+    parser.add_argument(
+        "--mechanism-reweighting-min-multiplier", type=float, default=0.25
+    )
+    parser.add_argument(
+        "--mechanism-reweighting-max-multiplier", type=float, default=4.0
+    )
     parser.add_argument(
         "--judge-mode",
         choices=("none", "llm"),
@@ -104,10 +150,16 @@ def main() -> None:
         config["domain_config"]["base_seed"] = args.seed
     if args.max_events_per_episode is not None:
         config["max_events_per_episode"] = args.max_events_per_episode
-    if args.scenario_family is not None:
-        config["domain_config"]["scenario_weights"] = {
-            args.scenario_family: 1.0
-        }
+    axis = dict(config.get("time_axis", {}))
+    if args.time_unit:
+        axis["unit"] = args.time_unit
+    if args.time_axis_kind:
+        axis["kind"] = args.time_axis_kind
+    config["time_axis"] = axis
+    if args.duration_min is not None or args.duration_max is not None:
+        if args.duration_min is None or args.duration_max is None:
+            parser.error("Both --duration-min and --duration-max are required")
+        config["observation_duration"] = {"family": "uniform", "unit": axis.get("unit", "second"), "minimum": args.duration_min, "maximum": args.duration_max}
     judge_config = dict(config.get("semantic_judge", {}))
     if args.judge_mode is not None:
         judge_config["mode"] = args.judge_mode
@@ -182,12 +234,67 @@ def main() -> None:
     config["semantic_correction"] = correction_config
     config["qa_export"] = qa_export_config
     output_dir = args.output_dir or config["output_directory"]
+    calibration_bundle = None
+    calibration_components = {
+        item.strip()
+        for item in str(args.calibration_components).split(",")
+        if item.strip()
+    }
+    unknown_calibration_components = (
+        calibration_components - VALID_CALIBRATION_COMPONENTS
+    )
+    if unknown_calibration_components:
+        parser.error(
+            "Unknown --calibration-components values: "
+            + ", ".join(sorted(unknown_calibration_components))
+        )
+    if not calibration_components:
+        parser.error("--calibration-components must select at least one component")
+    if args.calibration_bundle:
+        with Path(args.calibration_bundle).open("r", encoding="utf-8") as handle:
+            calibration_bundle = json.load(handle)
     if domain == "transportation":
-        domain_package = TransportationPackage(config.get("domain_config", {}))
         temporal_models = build_transportation_temporal_models()
     else:
-        domain_package = HealthcarePackage(config.get("domain_config", {}))
         temporal_models = build_healthcare_temporal_models()
+    if calibration_bundle is not None:
+        calibration_application = apply_sequence_calibration_bundle(
+            calibration_bundle,
+            domain=domain,
+            domain_config=config["domain_config"],
+            temporal_models=temporal_models,
+            allow_pending=args.allow_pending_calibration,
+            components=calibration_components,
+        )
+        config["distribution_calibration"] = {
+            "mode": "sequence_calibration_bundle",
+            "bundle_path": str(Path(args.calibration_bundle).resolve()),
+            **calibration_application,
+        }
+    else:
+        config["distribution_calibration"] = {"mode": "generic_prior"}
+    if args.scenario_family is not None:
+        config["domain_config"]["scenario_weights"] = {
+            args.scenario_family: 1.0
+        }
+    if domain == "transportation":
+        domain_package = TransportationPackage(config.get("domain_config", {}))
+    else:
+        domain_package = HealthcarePackage(config.get("domain_config", {}))
+    mechanism_reweighter = None
+    if (
+        calibration_bundle is not None
+        and "mechanism_reweighting" in calibration_components
+    ):
+        mechanism_reweighter = LegalMechanismReweighter.from_bundle(
+            calibration_bundle,
+            mechanism_descriptors=domain_package.catalog().get("mechanisms", []),
+            mode=args.mechanism_reweighting_mode,
+            strength=args.mechanism_reweighting_strength,
+            min_history_count=args.mechanism_reweighting_min_history_count,
+            minimum_multiplier=args.mechanism_reweighting_min_multiplier,
+            maximum_multiplier=args.mechanism_reweighting_max_multiplier,
+        )
     result = GenerationPipeline(
         domain_package,
         temporal_models,
@@ -195,6 +302,7 @@ def main() -> None:
         output_dir,
         semantic_judge=semantic_judge,
         semantic_corrector=semantic_corrector,
+        mechanism_reweighter=mechanism_reweighter,
     ).run()
     print(json.dumps(result, ensure_ascii=False, indent=2))
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -157,7 +158,7 @@ def validate_reference_dataset(dataset: ReferenceDataset) -> Dict[str, Any]:
     for window in dataset.windows:
         if window.domain != dataset.domain:
             errors.append(f"Window {window.window_id} has the wrong domain")
-        if window.duration_seconds <= 0.0:
+        if not math.isfinite(window.duration_seconds) or window.duration_seconds <= 0.0:
             errors.append(f"Window {window.window_id} has non-positive duration")
         if window.split not in REFERENCE_SPLITS:
             errors.append(f"Window {window.window_id} has unsupported split {window.split}")
@@ -173,7 +174,7 @@ def validate_reference_dataset(dataset: ReferenceDataset) -> Dict[str, Any]:
                     window.window_id,
                 )
             )
-        except ValueError:
+        except (ValueError, OverflowError):
             errors.append(f"Window {window.window_id} has an invalid timezone-aware start_time")
     if split_unit == "context":
         for context_id, splits in context_splits.items():

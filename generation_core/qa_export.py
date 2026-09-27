@@ -357,6 +357,7 @@ def _qa_record(
         "relation_id": relation_id,
         "metadata": {
             "scenario_family": result.episode_attributes.get("scenario_family"),
+            "prefix_group_id": result.episode_attributes.get("prefix_group_id"),
             "answers_generated_by_llm": False,
             "structured_truth_frozen": True,
         },
@@ -597,6 +598,7 @@ def _training_metadata(qa: Dict[str, Any]) -> Dict[str, Any]:
         "domain": qa.get("domain"),
         "context_id": qa.get("context_id"),
         "scenario_family": metadata.get("scenario_family"),
+        "prefix_group_id": qa.get("prefix_group_id", metadata.get("prefix_group_id")),
         "input_view": qa.get("input_view"),
         "evidence_record_ids": list(qa.get("evidence_record_ids", [])),
         "structured_truth_frozen": True,

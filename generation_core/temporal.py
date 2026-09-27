@@ -113,7 +113,13 @@ class ConditionalLogNormalModel:
         )
         if not 0.0 <= lower_probability < upper_probability <= 1.0:
             raise ValueError("Invalid truncated log-normal support")
-        probability = rng.uniform(lower_probability, upper_probability)
+        hazard_multiplier = _mechanism_hazard_multiplier(candidate.temporal_inputs)
+        conditional_probability = _base_probability_for_proportional_hazards(
+            rng.random(), hazard_multiplier
+        )
+        probability = lower_probability + conditional_probability * (
+            upper_probability - lower_probability
+        )
         probability = min(1.0 - 1e-15, max(1e-15, probability))
         delay = math.exp(normal.inv_cdf(probability))
         candidate.scheduled_time = candidate.activation_time + delay
@@ -125,6 +131,8 @@ class ConditionalLogNormalModel:
                 "delay_seconds": delay,
                 "truncated_probability": probability,
                 "probability_interval": [lower_probability, upper_probability],
+                "mechanism_hazard_multiplier": hazard_multiplier,
+                "proportional_hazards_reweighting": hazard_multiplier != 1.0,
                 "conditioning_inputs": dict(candidate.temporal_inputs),
             },
         )
@@ -178,11 +186,14 @@ class ConditionalLogNormalModel:
                 0.0,
                 (upper_cdf - normal.cdf(math.log(elapsed))) / normalizer,
             )
-        return _continuous_measure(
-            elapsed,
-            density,
-            survival,
-            support=[self.minimum_seconds, self.maximum_seconds],
+        return _reweight_continuous_measure(
+            _continuous_measure(
+                elapsed,
+                density,
+                survival,
+                support=[self.minimum_seconds, self.maximum_seconds],
+            ),
+            _mechanism_hazard_multiplier(candidate.temporal_inputs),
         )
 
 
@@ -210,12 +221,14 @@ class ConditionalGammaModel:
         if self.shape <= 0.0:
             raise ValueError("Gamma shape must be positive")
         rate = self._rate(candidate.temporal_inputs)
-        delay = _sample_truncated_gamma(
+        hazard_multiplier = _mechanism_hazard_multiplier(candidate.temporal_inputs)
+        delay = _sample_proportional_truncated_gamma(
             rng,
             self.shape,
             rate,
             self.minimum_seconds,
             self.maximum_seconds,
+            hazard_multiplier,
         )
         candidate.scheduled_time = candidate.activation_time + delay
         candidate.last_updated_at = candidate.activation_time
@@ -225,6 +238,8 @@ class ConditionalGammaModel:
                 "shape": self.shape,
                 "rate_per_second": rate,
                 "delay_seconds": delay,
+                "mechanism_hazard_multiplier": hazard_multiplier,
+                "proportional_hazards_reweighting": hazard_multiplier != 1.0,
                 "conditioning_inputs": dict(candidate.temporal_inputs),
             },
         )
@@ -247,12 +262,16 @@ class ConditionalGammaModel:
     def measure(self, candidate: Candidate, at_time: float) -> Dict[str, Any]:
         elapsed = max(0.0, at_time - candidate.activation_time)
         rate = self._rate(candidate.temporal_inputs)
-        return _truncated_gamma_measure(
+        measure = _truncated_gamma_measure(
             elapsed,
             self.shape,
             rate,
             self.minimum_seconds,
             self.maximum_seconds,
+        )
+        return _reweight_continuous_measure(
+            measure,
+            _mechanism_hazard_multiplier(candidate.temporal_inputs),
         )
 
 
@@ -286,7 +305,15 @@ class ConditionalWeibullModel:
             if self.maximum_seconds is not None
             else 1.0
         )
-        probability = rng.uniform(lower_cdf, upper_cdf)
+        if upper_cdf <= lower_cdf:
+            raise ValueError("Invalid truncated Weibull support")
+        hazard_multiplier = _mechanism_hazard_multiplier(candidate.temporal_inputs)
+        conditional_probability = _base_probability_for_proportional_hazards(
+            rng.random(), hazard_multiplier
+        )
+        probability = lower_cdf + conditional_probability * (
+            upper_cdf - lower_cdf
+        )
         probability = min(1.0 - 1e-15, max(0.0, probability))
         delay = scale * (-math.log1p(-probability)) ** (1.0 / self.shape)
         candidate.scheduled_time = candidate.activation_time + delay
@@ -299,6 +326,8 @@ class ConditionalWeibullModel:
                 "delay_seconds": delay,
                 "truncated_probability": probability,
                 "probability_interval": [lower_cdf, upper_cdf],
+                "mechanism_hazard_multiplier": hazard_multiplier,
+                "proportional_hazards_reweighting": hazard_multiplier != 1.0,
                 "conditioning_inputs": dict(candidate.temporal_inputs),
             },
         )
@@ -344,11 +373,14 @@ class ConditionalWeibullModel:
             )
             density = base_density / normalizer
             survival = max(0.0, (upper_cdf - _weibull_cdf(elapsed, self.shape, scale)) / normalizer)
-        return _continuous_measure(
-            elapsed,
-            density,
-            survival,
-            support=[self.minimum_seconds, self.maximum_seconds],
+        return _reweight_continuous_measure(
+            _continuous_measure(
+                elapsed,
+                density,
+                survival,
+                support=[self.minimum_seconds, self.maximum_seconds],
+            ),
+            _mechanism_hazard_multiplier(candidate.temporal_inputs),
         )
 
 
@@ -401,7 +433,9 @@ class ExponentialArrivalModel:
     covariate_mode: CovariateMode = CovariateMode.STATIC_AT_ACTIVATION
 
     def initialize(self, candidate: Candidate, rng: random.Random) -> None:
-        rate = float(candidate.temporal_inputs.get("rate_per_second", self.default_rate_per_second))
+        base_rate = float(candidate.temporal_inputs.get("rate_per_second", self.default_rate_per_second))
+        hazard_multiplier = _mechanism_hazard_multiplier(candidate.temporal_inputs)
+        rate = base_rate * hazard_multiplier
         if rate <= 0.0:
             candidate.scheduled_time = None
             delay = None
@@ -410,7 +444,14 @@ class ExponentialArrivalModel:
             candidate.scheduled_time = candidate.activation_time + delay
         candidate.last_updated_at = candidate.activation_time
         candidate.temporal_provenance = _provenance(
-            self, {"rate_per_second": rate, "delay_seconds": delay}
+            self,
+            {
+                "base_rate_per_second": base_rate,
+                "rate_per_second": rate,
+                "delay_seconds": delay,
+                "mechanism_hazard_multiplier": hazard_multiplier,
+                "proportional_hazards_reweighting": hazard_multiplier != 1.0,
+            },
         )
 
     def update(self, candidate: Candidate, now: float, inputs: Mapping[str, Any]) -> None:
@@ -421,10 +462,15 @@ class ExponentialArrivalModel:
 
     def measure(self, candidate: Candidate, at_time: float) -> Dict[str, Any]:
         elapsed = max(0.0, at_time - candidate.activation_time)
-        rate = float(candidate.temporal_inputs.get("rate_per_second", self.default_rate_per_second))
+        base_rate = float(candidate.temporal_inputs.get("rate_per_second", self.default_rate_per_second))
+        multiplier = _mechanism_hazard_multiplier(candidate.temporal_inputs)
+        rate = base_rate * multiplier
         rate = max(0.0, rate)
         survival = math.exp(-rate * elapsed)
-        return _continuous_measure(elapsed, rate * survival, survival)
+        result = _continuous_measure(elapsed, rate * survival, survival)
+        result["mechanism_hazard_multiplier"] = multiplier
+        result["base_hazard_per_second"] = max(0.0, base_rate)
+        return result
 
 
 @dataclass(frozen=True)
@@ -501,7 +547,11 @@ class PiecewiseExponentialHazardModel:
             float(weight) * float(inputs.get(name, 0.0))
             for name, weight in self.coefficients.items()
         )
-        return self.baseline_rate_per_second * math.exp(linear)
+        return (
+            self.baseline_rate_per_second
+            * math.exp(linear)
+            * _mechanism_hazard_multiplier(inputs)
+        )
 
     def descriptor(self) -> Dict[str, Any]:
         return _descriptor(
@@ -535,6 +585,11 @@ class PiecewiseExponentialHazardModel:
         )
         result["cumulative_hazard"] = cumulative
         result["hazard_active_from_offset_seconds"] = active_from
+        multiplier = _mechanism_hazard_multiplier(candidate.temporal_inputs)
+        result["mechanism_hazard_multiplier"] = multiplier
+        result["base_hazard_per_second"] = (
+            hazard / multiplier if multiplier > 0.0 else None
+        )
         return result
 
 
@@ -586,6 +641,7 @@ class ExponentialBackoffModel:
 class TemporalModelRegistry:
     def __init__(self, models: Iterable[TemporalModel] = ()) -> None:
         self._models: Dict[str, TemporalModel] = {}
+        self._parameter_status_overrides: Dict[str, str] = {}
         for model in models:
             self.register(model)
 
@@ -593,6 +649,19 @@ class TemporalModelRegistry:
         if model.model_id in self._models:
             raise ValueError(f"Duplicate temporal model ID: {model.model_id}")
         self._models[model.model_id] = model
+
+    def replace(
+        self,
+        model: TemporalModel,
+        *,
+        parameter_status: str = "empirically_estimated_pending_domain_acceptance",
+    ) -> None:
+        """Replace one declared model with an explicitly calibrated model."""
+
+        if model.model_id not in self._models:
+            raise KeyError(f"Cannot calibrate unknown temporal model: {model.model_id}")
+        self._models[model.model_id] = model
+        self._parameter_status_overrides[model.model_id] = parameter_status
 
     def get(self, model_id: str) -> TemporalModel:
         try:
@@ -633,7 +702,14 @@ class TemporalModelRegistry:
         return temporary.scheduled_time - activation_time, temporary.temporal_provenance
 
     def descriptors(self) -> list[Dict[str, Any]]:
-        return [self._models[key].descriptor() for key in sorted(self._models)]
+        output = []
+        for key in sorted(self._models):
+            descriptor = self._models[key].descriptor()
+            if key in self._parameter_status_overrides:
+                descriptor["parameter_status"] = self._parameter_status_overrides[key]
+                descriptor["calibration_applied"] = True
+            output.append(descriptor)
+        return output
 
 
 def build_standard_temporal_registry() -> TemporalModelRegistry:
@@ -685,6 +761,57 @@ def _continuous_measure(
     return result
 
 
+def _mechanism_hazard_multiplier(inputs: Mapping[str, Any]) -> float:
+    multiplier = float(inputs.get("_mechanism_hazard_multiplier", 1.0))
+    if not math.isfinite(multiplier) or multiplier <= 0.0:
+        raise ValueError("Mechanism hazard multiplier must be finite and positive")
+    return multiplier
+
+
+def _base_probability_for_proportional_hazards(
+    weighted_probability: float, multiplier: float
+) -> float:
+    """Map a PH-distribution quantile to the unweighted base quantile."""
+
+    probability = min(1.0 - 1e-15, max(1e-15, float(weighted_probability)))
+    return 1.0 - (1.0 - probability) ** (1.0 / multiplier)
+
+
+def _apply_proportional_hazards(
+    base_density: float, base_survival: float, multiplier: float
+) -> tuple[float, float]:
+    survival = min(1.0, max(0.0, float(base_survival)))
+    density = max(0.0, float(base_density))
+    if multiplier == 1.0 or survival <= 0.0:
+        return density, survival
+    weighted_survival = survival**multiplier
+    base_hazard = density / survival
+    weighted_density = multiplier * base_hazard * weighted_survival
+    return weighted_density, weighted_survival
+
+
+def _reweight_continuous_measure(
+    base_measure: Mapping[str, Any], multiplier: float
+) -> Dict[str, Any]:
+    density, survival = _apply_proportional_hazards(
+        float(base_measure.get("density_per_second") or 0.0),
+        float(base_measure.get("survival_probability", 1.0)),
+        multiplier,
+    )
+    result = _continuous_measure(
+        float(base_measure.get("elapsed_seconds", 0.0)),
+        density,
+        survival,
+        support=base_measure.get("support_seconds"),
+    )
+    result["mechanism_hazard_multiplier"] = multiplier
+    result["base_survival_probability"] = base_measure.get(
+        "survival_probability"
+    )
+    result["base_hazard_per_second"] = base_measure.get("hazard_per_second")
+    return result
+
+
 def _atom_measure(
     clock_kind: str, candidate: Candidate, at_time: float
 ) -> Dict[str, Any]:
@@ -726,6 +853,48 @@ def _sample_truncated_gamma(
         if value >= minimum and (maximum is None or value <= maximum):
             return value
     raise ValueError("Gamma truncation interval has negligible probability mass")
+
+
+def _sample_proportional_truncated_gamma(
+    rng: random.Random,
+    shape: float,
+    rate: float,
+    minimum: float,
+    maximum: float | None,
+    multiplier: float,
+) -> float:
+    if rate <= 0.0 or minimum < 0.0 or (
+        maximum is not None and maximum <= minimum
+    ):
+        raise ValueError("Invalid truncated gamma parameters")
+    lower_cdf = _regularized_gamma_p(shape, rate * minimum)
+    upper_cdf = (
+        _regularized_gamma_p(shape, rate * maximum)
+        if maximum is not None
+        else 1.0
+    )
+    if upper_cdf <= lower_cdf:
+        raise ValueError("Invalid truncated gamma support")
+    conditional_probability = _base_probability_for_proportional_hazards(
+        rng.random(), multiplier
+    )
+    target_cdf = lower_cdf + conditional_probability * (upper_cdf - lower_cdf)
+    lower = minimum
+    if maximum is None:
+        upper = max(minimum + 1.0 / rate, shape / rate * 2.0, 1.0 / rate)
+        while _regularized_gamma_p(shape, rate * upper) < target_cdf:
+            upper *= 2.0
+            if not math.isfinite(upper):
+                raise ValueError("Could not bracket proportional-hazards gamma quantile")
+    else:
+        upper = maximum
+    for _ in range(120):
+        midpoint = (lower + upper) / 2.0
+        if _regularized_gamma_p(shape, rate * midpoint) < target_cdf:
+            lower = midpoint
+        else:
+            upper = midpoint
+    return (lower + upper) / 2.0
 
 
 def _truncated_gamma_measure(
