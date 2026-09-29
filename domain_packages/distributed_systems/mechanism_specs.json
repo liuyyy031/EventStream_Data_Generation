@@ -1,6 +1,225 @@
 {
   "schema_version": "mechanism-spec-v1",
   "domain": "distributed_systems",
-  "implementation_status": "structure_only_pending_reference_data",
-  "mechanisms": []
+  "implementation_status": "implemented_synthetic_rpc_workflows",
+  "mechanisms": [
+    {
+      "mechanism_id": "distributed_systems.request_arrival",
+      "source_event_type_ids": [],
+      "target_event_type_id": "distributed_systems.rpc.request.sent",
+      "parent_combination": "none",
+      "required_context_relation_type_ids": [
+        "distributed_systems.service_calls_service",
+        "distributed_systems.service_deployed_on_host",
+        "distributed_systems.service_runs_in_container",
+        "distributed_systems.container_runs_on_host",
+        "distributed_systems.endpoint_exposed_by_service"
+      ],
+      "temporal_model_family": "exponential_arrival",
+      "generation_temporal_model_ref": "distributed_systems.root_arrival",
+      "covariate_fields": [],
+      "relation_semantics": "exogenous",
+      "evidence_policy": "independent_root",
+      "calibration_fitter_id": null,
+      "parameter_status": "synthetic_prior_pending_empirical_fit",
+      "notes": null
+    },
+    {
+      "mechanism_id": "distributed_systems.request_delivery",
+      "source_event_type_ids": [
+        "distributed_systems.rpc.request.sent"
+      ],
+      "target_event_type_id": "distributed_systems.rpc.request.received",
+      "parent_combination": "single",
+      "required_context_relation_type_ids": [
+        "distributed_systems.service_calls_service",
+        "distributed_systems.service_deployed_on_host",
+        "distributed_systems.service_runs_in_container",
+        "distributed_systems.container_runs_on_host",
+        "distributed_systems.endpoint_exposed_by_service"
+      ],
+      "temporal_model_family": "conditional_lognormal",
+      "generation_temporal_model_ref": "distributed_systems.network_delay",
+      "covariate_fields": [],
+      "relation_semantics": "communication",
+      "evidence_policy": "explicit_link",
+      "calibration_fitter_id": null,
+      "parameter_status": "synthetic_prior_pending_empirical_fit",
+      "notes": null
+    },
+    {
+      "mechanism_id": "distributed_systems.server_processing",
+      "source_event_type_ids": [
+        "distributed_systems.rpc.request.received"
+      ],
+      "target_event_type_id": "distributed_systems.rpc.processing.completed",
+      "parent_combination": "single",
+      "required_context_relation_type_ids": [
+        "distributed_systems.service_calls_service",
+        "distributed_systems.service_deployed_on_host",
+        "distributed_systems.service_runs_in_container",
+        "distributed_systems.container_runs_on_host",
+        "distributed_systems.endpoint_exposed_by_service"
+      ],
+      "temporal_model_family": "piecewise_exponential_hazard",
+      "generation_temporal_model_ref": "distributed_systems.processing_hazard",
+      "covariate_fields": [
+        "inflight",
+        "host_inflight",
+        "log_capacity",
+        "degraded"
+      ],
+      "relation_semantics": "workflow",
+      "evidence_policy": "explicit_link",
+      "calibration_fitter_id": null,
+      "parameter_status": "synthetic_prior_pending_empirical_fit",
+      "notes": "Preserve accumulated hazard on load/recovery updates; not a queue simulator."
+    },
+    {
+      "mechanism_id": "distributed_systems.response_delivery",
+      "source_event_type_ids": [
+        "distributed_systems.rpc.processing.completed"
+      ],
+      "target_event_type_id": "distributed_systems.rpc.response.received",
+      "parent_combination": "single",
+      "required_context_relation_type_ids": [
+        "distributed_systems.service_calls_service",
+        "distributed_systems.service_deployed_on_host",
+        "distributed_systems.service_runs_in_container",
+        "distributed_systems.container_runs_on_host",
+        "distributed_systems.endpoint_exposed_by_service"
+      ],
+      "temporal_model_family": "conditional_lognormal",
+      "generation_temporal_model_ref": "distributed_systems.network_delay",
+      "covariate_fields": [],
+      "relation_semantics": "communication",
+      "evidence_policy": "explicit_link",
+      "calibration_fitter_id": null,
+      "parameter_status": "synthetic_prior_pending_empirical_fit",
+      "notes": null
+    },
+    {
+      "mechanism_id": "distributed_systems.client_timeout",
+      "source_event_type_ids": [
+        "distributed_systems.rpc.request.sent"
+      ],
+      "target_event_type_id": "distributed_systems.rpc.request.timed_out",
+      "parent_combination": "single",
+      "required_context_relation_type_ids": [
+        "distributed_systems.service_calls_service",
+        "distributed_systems.service_deployed_on_host",
+        "distributed_systems.service_runs_in_container",
+        "distributed_systems.container_runs_on_host",
+        "distributed_systems.endpoint_exposed_by_service"
+      ],
+      "temporal_model_family": "deterministic_delay",
+      "generation_temporal_model_ref": "distributed_systems.timeout",
+      "covariate_fields": [
+        "delay_seconds"
+      ],
+      "relation_semantics": "workflow",
+      "evidence_policy": "explicit_link",
+      "calibration_fitter_id": null,
+      "parameter_status": "policy_defined",
+      "notes": "Client-local deadline: timeout does not cancel server work."
+    },
+    {
+      "mechanism_id": "distributed_systems.retry_backoff",
+      "source_event_type_ids": [
+        "distributed_systems.rpc.request.timed_out"
+      ],
+      "target_event_type_id": "distributed_systems.rpc.request.sent",
+      "parent_combination": "single",
+      "required_context_relation_type_ids": [
+        "distributed_systems.service_calls_service",
+        "distributed_systems.service_deployed_on_host",
+        "distributed_systems.service_runs_in_container",
+        "distributed_systems.container_runs_on_host",
+        "distributed_systems.endpoint_exposed_by_service"
+      ],
+      "temporal_model_family": "exponential_backoff",
+      "generation_temporal_model_ref": "distributed_systems.retry_backoff",
+      "covariate_fields": [
+        "attempt"
+      ],
+      "relation_semantics": "workflow",
+      "evidence_policy": "explicit_link",
+      "calibration_fitter_id": null,
+      "parameter_status": "policy_defined",
+      "notes": "Same operation and idempotency token, new attempt; read-only endpoints."
+    },
+    {
+      "mechanism_id": "distributed_systems.retry_exhaustion",
+      "source_event_type_ids": [
+        "distributed_systems.rpc.request.timed_out"
+      ],
+      "target_event_type_id": "distributed_systems.rpc.retry.exhausted",
+      "parent_combination": "single",
+      "required_context_relation_type_ids": [
+        "distributed_systems.service_calls_service",
+        "distributed_systems.service_deployed_on_host",
+        "distributed_systems.service_runs_in_container",
+        "distributed_systems.container_runs_on_host",
+        "distributed_systems.endpoint_exposed_by_service"
+      ],
+      "temporal_model_family": "deterministic_delay",
+      "generation_temporal_model_ref": "core.immediate",
+      "covariate_fields": [],
+      "relation_semantics": "derivation",
+      "evidence_policy": "explicit_link",
+      "calibration_fitter_id": null,
+      "parameter_status": "policy_defined",
+      "notes": null
+    },
+    {
+      "mechanism_id": "distributed_systems.workflow_join",
+      "source_event_type_ids": [
+        "distributed_systems.rpc.response.received",
+        "distributed_systems.rpc.retry.exhausted"
+      ],
+      "target_event_type_id": "distributed_systems.workflow.settled",
+      "parent_combination": "all_of",
+      "required_context_relation_type_ids": [],
+      "temporal_model_family": "deterministic_delay",
+      "generation_temporal_model_ref": "core.immediate",
+      "covariate_fields": [],
+      "relation_semantics": "workflow",
+      "evidence_policy": "explicit_link",
+      "calibration_fitter_id": null,
+      "parameter_status": "policy_defined",
+      "notes": null
+    },
+    {
+      "mechanism_id": "distributed_systems.degradation_onset",
+      "source_event_type_ids": [],
+      "target_event_type_id": "distributed_systems.service.degraded",
+      "parent_combination": "none",
+      "required_context_relation_type_ids": [],
+      "temporal_model_family": "deterministic_delay",
+      "generation_temporal_model_ref": "core.immediate",
+      "covariate_fields": [],
+      "relation_semantics": "exogenous",
+      "evidence_policy": "independent_root",
+      "calibration_fitter_id": null,
+      "parameter_status": "policy_defined",
+      "notes": null
+    },
+    {
+      "mechanism_id": "distributed_systems.service_recovery",
+      "source_event_type_ids": [
+        "distributed_systems.service.degraded"
+      ],
+      "target_event_type_id": "distributed_systems.service.restored",
+      "parent_combination": "single",
+      "required_context_relation_type_ids": [],
+      "temporal_model_family": "conditional_lognormal",
+      "generation_temporal_model_ref": "distributed_systems.recovery_delay",
+      "covariate_fields": [],
+      "relation_semantics": "transition",
+      "evidence_policy": "explicit_link",
+      "calibration_fitter_id": null,
+      "parameter_status": "synthetic_prior_pending_empirical_fit",
+      "notes": null
+    }
+  ]
 }

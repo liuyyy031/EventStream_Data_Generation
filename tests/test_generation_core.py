@@ -203,7 +203,7 @@ class CalibrationContractTest(unittest.TestCase):
         distributed = load_mechanism_registry(root / "distributed_systems" / "mechanism_specs.json")
         self.assertEqual(len(transportation), 11)
         self.assertEqual(len(healthcare), 12)
-        self.assertEqual(len(distributed), 0)
+        self.assertEqual(len(distributed), 10)
         self.assertEqual(
             healthcare.get("healthcare.multisignal_flags_to_alert").parent_combination,
             "all_of",

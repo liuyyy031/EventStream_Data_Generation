@@ -16,7 +16,8 @@ data_generation/
   domain_packages/             executable domain definitions and priors
     transportation/
     healthcare/
-    distributed_systems/       structural placeholder, not yet executable
+    distributed_systems/       typed RPC, timeout, retry, recovery and fan-in
+    registry.py                executable domain registration
   tests/                       tests for the active runtime only
   docs/                        active design documentation
   legacy/                      isolated historical implementations
@@ -29,6 +30,11 @@ must not import modules from `legacy/` or `artifacts/`.
 
 For scientific time axes, variable horizons, scoped history, explicit observation
 windows and continuation tests, see [generation contract revision](docs/generation_contract_revision.md).
+
+For distributed-system node semantics, timing assumptions and scope, see
+[the domain description](domain_packages/distributed_systems/README.md).
+Server upload paths and LLM/continuation commands are in
+[the distributed-system test protocol](docs/DISTRIBUTED_SYSTEMS_TEST_PROTOCOL.md).
 
 ## Generate data
 

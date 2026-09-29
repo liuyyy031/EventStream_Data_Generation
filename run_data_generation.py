@@ -11,14 +11,7 @@ REPOSITORY_ROOT = Path(__file__).resolve().parent.parent
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
-from data_generation.domain_packages.healthcare import (
-    HealthcarePackage,
-    build_healthcare_temporal_models,
-)
-from data_generation.domain_packages.transportation import (
-    TransportationPackage,
-    build_transportation_temporal_models,
-)
+from data_generation.domain_packages.registry import DOMAIN_BUILDERS
 from data_generation.generation_core.pipeline import GenerationPipeline
 from data_generation.generation_core.distribution_calibration import (
     VALID_CALIBRATION_COMPONENTS,
@@ -35,7 +28,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--domain",
-        choices=("transportation", "healthcare"),
+        choices=tuple(DOMAIN_BUILDERS),
         default="transportation",
         help="Domain package to run when --config is omitted.",
     )
@@ -139,7 +132,7 @@ def main() -> None:
     domain = str(config.get("domain", ""))
     if args.config and args.domain != "transportation" and args.domain != domain:
         parser.error("--domain and the configured domain disagree")
-    if domain not in {"transportation", "healthcare"}:
+    if domain not in DOMAIN_BUILDERS:
         raise ValueError(f"No executable domain package is registered for {domain!r}")
     if args.episode_count is not None:
         config["episode_count"] = args.episode_count
@@ -253,10 +246,8 @@ def main() -> None:
     if args.calibration_bundle:
         with Path(args.calibration_bundle).open("r", encoding="utf-8") as handle:
             calibration_bundle = json.load(handle)
-    if domain == "transportation":
-        temporal_models = build_transportation_temporal_models()
-    else:
-        temporal_models = build_healthcare_temporal_models()
+    package_type, build_models = DOMAIN_BUILDERS[domain]
+    temporal_models = build_models()
     if calibration_bundle is not None:
         calibration_application = apply_sequence_calibration_bundle(
             calibration_bundle,
@@ -277,10 +268,7 @@ def main() -> None:
         config["domain_config"]["scenario_weights"] = {
             args.scenario_family: 1.0
         }
-    if domain == "transportation":
-        domain_package = TransportationPackage(config.get("domain_config", {}))
-    else:
-        domain_package = HealthcarePackage(config.get("domain_config", {}))
+    domain_package = package_type(config.get("domain_config", {}))
     mechanism_reweighter = None
     if (
         calibration_bundle is not None

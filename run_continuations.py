@@ -8,8 +8,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from data_generation.domain_packages.healthcare import HealthcarePackage, build_healthcare_temporal_models
-from data_generation.domain_packages.transportation import TransportationPackage, build_transportation_temporal_models
+from data_generation.domain_packages.registry import DOMAIN_BUILDERS
 from data_generation.generation_core.scheduler import SimulationEngine
 from data_generation.generation_core.writer import DatasetWriter
 from data_generation.generation_core.validation import validate_text_alignment
@@ -18,7 +17,8 @@ from data_generation.generation_core.qa_export import generate_episode_qa, instr
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--domain", choices=("healthcare", "transportation"), default="healthcare")
+    parser.add_argument("--domain", choices=tuple(DOMAIN_BUILDERS), default="healthcare")
+    parser.add_argument("--scenario-family", help="Restrict to one scenario declared by the selected domain")
     parser.add_argument("--nodes-per-context", type=int, default=1000)
     parser.add_argument("--prefix-events", type=int, default=2)
     parser.add_argument("--continuation-count", type=int, default=5)
@@ -31,8 +31,11 @@ def main():
     output = Path(args.output_dir)
     if output.exists():
         parser.error("Output directory already exists; choose a new directory")
-    package_type, build_models = (HealthcarePackage, build_healthcare_temporal_models) if args.domain == "healthcare" else (TransportationPackage, build_transportation_temporal_models)
-    package = package_type({"nodes_per_context": args.nodes_per_context, "base_seed": args.seed})
+    package_type, build_models = DOMAIN_BUILDERS[args.domain]
+    domain_config = {"nodes_per_context": args.nodes_per_context, "base_seed": args.seed}
+    if args.scenario_family:
+        domain_config["scenario_weights"] = {args.scenario_family: 1.0}
+    package = package_type(domain_config)
     models = build_models()
     engine = SimulationEngine(package, models, max_events=args.max_events_per_episode)
     snapshot = engine.run(0, args.seed, stop_after_events=args.prefix_events)

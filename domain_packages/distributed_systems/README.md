@@ -1,17 +1,75 @@
-# Distributed-systems domain structure
+# 分布式系统领域：可执行的 RPC 事件流
 
-This directory reserves the domain contract only. The first implementation
-should cover request, downstream call, response or timeout, retry, terminal
-outcome, and recovery. Parentage should come from trace context or an explicit
-synthetic rule; topology alone must never create an event parent relation.
+本包已从结构占位升级为第三个可运行领域。目标是生成机制自洽、可追溯、可供事件流理解的合成数据，不是复现真实集群性能。本轮不改变交通、医疗领域的规则。
 
-Its reserved topology uses the shared sparse heterogeneous-graph engine with
-separate call, deployment, and exposure layers. Cycles may exist in call layers,
-while workflow layers can select the directed-acyclic operator. No spatial grid
-or whole-graph connectivity requirement is inherited from transportation.
+## 节点与关系
 
-`mechanism_specs.json` is intentionally empty. It verifies the shared mechanism
-contract without manufacturing trace semantics or failure probabilities before
-the trace mechanism vocabulary, admissible parent rules, and timing constraints
-are reviewed. A real trace source is optional: it is needed only for an
-empirical-realism claim, not for a coherent synthetic mechanism.
+| 节点 | 含义 | 实际作用 |
+|---|---|---|
+| service | 逻辑服务，承担调用方或被调用方角色 | 限定请求参与者、调用权限和本地超时 |
+| host | 承载执行实例的计算主机 | 容量、同时处理数参与完成风险率 |
+| container | 服务的执行实例 | 确定该请求在哪个实例和主机执行 |
+| endpoint | 服务暴露的只读接口 | 将请求绑定到明确的所属服务及 GET/idempotent 契约 |
+
+稀疏图包含五层：服务调用服务、服务部署到主机、服务运行于容器、容器运行于主机、接口归属服务。
+服务→容器→主机和服务→主机必须一致。绑定关系每个源只有一个目标；调用关系允许环。
+不套用道路邻接或空间距离，不要求整个异构图连通，不创建节点平方大小的矩阵。
+
+默认 1000 个实体由 300 个服务、300 个容器、100 个主机和 300 个接口组成。这是明确的合成配置，不是真实比例。调用图通过随机稀疏采样产生不同出度，仅预留一个满足当前 fanout 的工作流入口；不强制所有服务具有相同度数。每个 episode 从有足够合法调用边的服务中选择调用方，因此它是“条件于一个合法并行调用工作流”的样本，而不是全网流量抽样。
+
+## 已实现机制
+
+三个场景：normal_rpc（正常请求）、slow_dependency（一个依赖服务降级）、retry_pressure（多个依赖降级）。场景控制初始条件，不硬编码请求成功或失败。
+
+1. 业务请求有 operation_id；每次发送或重试都有独立 attempt_id。
+2. 发送后同时激活传输到达候选和调用方超时。
+3. 接收后启动处理；完成后才启动返回响应的传输。
+4. 同一尝试在截止时间内收到响应，取消它自己的超时。
+5. 超时不取消服务端工作；该尝试的迟到响应仍被记录，但不会完成后续重试。
+6. 超时按退避策略重试；到达预算后生成 retry.exhausted。
+7. 所有并行业务请求各自出现一个终局结果后，生成 workflow.settled。它的 all_of 父事件必须是这些实际终局结果，而非任意相邻节点。
+8. 服务降级与恢复改变仍在执行的处理时钟，不重新抽取完整处理时间。
+
+图连接只限定哪些调用可发生；事件前驱来自实际发送、接收、处理、超时和重试规则。communication、workflow、transition、derivation 保持区分，不将全部前驱称为因果关系。
+
+## 时间模型及其作用
+
+| 过程 | 模型 | 本轮数值与语义 |
+|---|---|---|
+| 单个初始请求的启动等待 | 指数分布 | rate=8/s；有限 fanout，不宣称全网平稳泊松到达 |
+| 请求/响应传输 | 条件对数正态 | 中位数基准 0.025s，sigma=0.45，最小 0.001s |
+| 服务处理完成 | 分段指数风险率 | 根据服务/主机在处理数量、主机容量、降级状态动态调整 |
+| 调用方超时 | 确定性延迟 | 默认每次发送后 0.5s，可配置 |
+| 重试等待 | 指数退避加抖动 | min(2s, 0.15s × 2^r) × U(0.8,1.2)，r 从 0 开始 |
+| 服务恢复 | 对数正态 | 中位数基准 1.5s，sigma=0.4，最小 0.05s |
+| 日志入库延迟 | 对数正态 | 中位数基准 0.02s，sigma=0.35，最小 0.001s |
+| 汇总/耗尽标记 | 即时确定性规则 | 父事件满足之后，在同一时刻生成 |
+
+处理风险率为：
+
+h(t) = 8 × exp[-0.35 × inflight_service(t) - 0.1 × inflight_host(t) + 0.3 × log(capacity_host) - 2.5 × degraded(t)]
+
+这些系数是透明合成先验；公式提供自洽的状态依赖，不代表经过性能测量拟合，也不是精确排队模型。状态变化后保留累计风险与原随机阈值，只改变未来风险率。共享主机的并发负载可以影响其他服务的处理候选。
+
+默认每个业务最多重试 2 次。退避中的 2s 是抖动前基准上限，因此完整抖动延迟最多可达 2.4s；不把它误称为 2s 硬上限。恰好同时到达的响应与超时，按明确的响应优先规则处理。
+
+## 可用时间与文本
+
+observed_at 表示事件所属 actor 的本地可用时刻，当前实现等于 occurrence_start；recorded_at 是日志采集器入库时刻，两者不能混同。
+调用方不能在服务端完成处理时就自动知道结果，必须等 rpc.response.received。所有关系明确写出 source_anchor=observed_at，传输关系必须等待正传输延迟。
+
+这批输出是同步合成时钟下的离线完整事件流，不宣称单一在线观察者已经实时知道所有节点的事件。若以后做采集器在线任务，应按 recorded_at 构建输入视图，不能直接把当前全局 occurrence 顺序当作采集器已知序列。
+
+文本逐事件和逐关系投影，保留角色、operation_id、attempt_id、迟到标记和时间锚点；claims 对齐结构记录。LLM 沿用共享语义审核/文本矫正闭环，不能改动时间、结构或答案。QA 与训练导出沿用现有公共接口。
+
+## 依据与边界
+
+- [OpenTelemetry traces](https://opentelemetry.io/docs/concepts/signals/traces/)：用于参考跨服务请求的上下文和标识关联思想。本包不是完整 OTel trace schema 的实现，标识关联也不等于真实因果识别。
+- [AWS: Making retries safe with idempotent APIs](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/)：超时不能证明服务端未执行；重试需要明确的请求身份和幂等语义。本包因此保留业务标识并限定只读请求，不声称仅靠一个 token 就实现了通用写操作的 exactly-once。
+- 分布与风险率复用现有公共时间模型库；本领域选择和数值均为本项目的合成设计，不能说成上述资料给定的参数。
+
+当前没有建模写入副作用、去重缓存、网络丢包/分区、持久故障、复制一致性、实例迁移、时钟偏移、无限请求流或精确队列。容器/绑定在 episode 内静态。一个 episode 是一组有限并行 RPC，非整个互联网的完整模拟。
+
+## 运行、上传与验收
+
+见 [分布式系统测试与上传说明](../../docs/DISTRIBUTED_SYSTEMS_TEST_PROTOCOL.md)。

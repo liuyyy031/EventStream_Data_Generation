@@ -1,0 +1,39 @@
+{
+  "domain": "distributed_systems",
+  "seed": 20260929,
+  "episode_count": 10,
+  "max_events_per_episode": 128,
+  "semantic_judge": {
+    "mode": "none",
+    "workers": 1,
+    "max_tokens": 2000,
+    "protocol_max_attempts": 3,
+    "max_generation_attempts": 3
+  },
+  "semantic_correction": {
+    "mode": "llm",
+    "max_rounds": 2,
+    "max_tokens": 3000,
+    "protocol_max_attempts": 3
+  },
+  "qa_export": {
+    "mode": "ground_truth_template",
+    "history_window_events": 64
+  },
+  "domain_config": {
+    "base_seed": 20260929,
+    "context_count": 4,
+    "nodes_per_context": 1000,
+    "duration_seconds": 15,
+    "start_time": "2026-09-29T08:00:00+08:00",
+    "fanout": 3,
+    "timeout_seconds": 0.5,
+    "max_retries": 2,
+    "scenario_weights": {
+      "normal_rpc": 0.4,
+      "slow_dependency": 0.35,
+      "retry_pressure": 0.25
+    }
+  },
+  "output_directory": "data_generation/output_distributed_systems"
+}
