@@ -251,6 +251,11 @@ class Candidate:
     fired_event_id: Optional[str] = None
     risk_set_id: Optional[str] = None
     selection_evidence: Dict[str, Any] = field(default_factory=dict)
+    precondition_audit: Dict[str, Any] = field(default_factory=lambda: {
+        "schema": "candidate-precondition-audit-v1", "evaluation_count": 0,
+        "valid_count": 0, "invalid_count": 0, "without_predicate_evidence_count": 0,
+        "phase_counts": {}, "invalid_reason_counts": {}, "predicates": {},
+    })
 
     def to_dict(self) -> Dict[str, Any]:
         return _jsonable(asdict(self))

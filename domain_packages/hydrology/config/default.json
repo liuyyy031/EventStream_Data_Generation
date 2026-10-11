@@ -1,0 +1,15 @@
+{
+  "domain":"hydrology", "seed":20261005, "episode_count":10, "max_events_per_episode":2048,
+  "time_axis":{"kind":"calendar","unit":"hour","resolution":0.000001},
+  "semantic_judge":{"mode":"none","workers":1,"max_tokens":3000,"protocol_max_attempts":3,"max_generation_attempts":3},
+  "semantic_correction":{"mode":"llm","max_rounds":2,"max_tokens":4000,"protocol_max_attempts":3},
+  "qa_export":{"mode":"ground_truth_template","history_window_events":64},
+  "domain_config":{
+    "base_seed":20261005,"context_count":4,"nodes_per_context":1000,
+    "duration_seconds":86400,"start_time":"2026-10-05T00:00:00+08:00",
+    "rainfall_intensity_range_mm_h":[4,32],"storm_duration_range_seconds":[1800,7200],
+    "initial_loss_range_mm":[2,12],"constant_loss_range_mm_h":[2,12],
+    "scenario_weights":{"isolated_storm":0.35,"tributary_confluence":0.35,"repeated_storms":0.3}
+  },
+  "output_directory":"data_generation/output_hydrology"
+}

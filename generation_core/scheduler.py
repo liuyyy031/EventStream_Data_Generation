@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import heapq
 import math
+import json
 import random
 from itertools import count
 from typing import Dict, List, Tuple
@@ -171,6 +172,7 @@ class SimulationEngine:
                     _terminate_candidate(active, "explicit_mutual_exclusion", fired.fired_event_id)
                     continue
                 update = self.domain_package.revalidate_candidate(active, context, event_by_id, now)
+                _audit_precondition_check(active, update, "state_refresh")
                 if update.context_evidence is not None:
                     active.context_evidence = copy.deepcopy(update.context_evidence)
                 if not update.valid:
@@ -288,6 +290,7 @@ class SimulationEngine:
                 decision = self.domain_package.revalidate_candidate(
                     active, context, event_by_id, due
                 )
+                _audit_precondition_check(active, decision, "decision_time")
                 if decision.context_evidence is not None:
                     active.context_evidence = copy.deepcopy(decision.context_evidence)
                 if not decision.valid:
@@ -436,7 +439,43 @@ class SimulationEngine:
         result.validation = validate_episode_result(
             result, self.domain_package.catalog()
         )
+        # Optional domain-owned contracts augment, never bypass, common checks.
+        # No domain identifiers or domain-specific rules belong in this engine.
+        domain_validator = getattr(self.domain_package, "validate_result", None)
+        if domain_validator is not None:
+            domain_errors = domain_validator(result)
+            result.validation["errors"].extend(domain_errors)
+            result.validation["checks"]["domain_contracts"] = not domain_errors
+            result.validation["passed"] = not result.validation["errors"]
         return result
+
+
+def _audit_precondition_check(candidate, decision, phase):
+    """Compact counters only: no random draws, decisions or clock changes.
+
+    Count fresh predicate evidence returned by this check, not retained evidence
+    that a domain did not re-evaluate. Early domain branches that never create a
+    candidate are outside this audit's observable scope.
+    """
+    audit = candidate.precondition_audit
+    if not audit:
+        audit.update(schema="candidate-precondition-audit-v1", evaluation_count=0,
+            valid_count=0, invalid_count=0, without_predicate_evidence_count=0,
+            phase_counts={}, invalid_reason_counts={}, predicates={})
+    audit["evaluation_count"] += 1
+    audit["valid_count" if decision.valid else "invalid_count"] += 1
+    audit["phase_counts"][phase] = audit["phase_counts"].get(phase, 0) + 1
+    if not decision.valid:
+        reason = decision.reason or "unspecified_invalid_precondition"
+        audit["invalid_reason_counts"][reason] = audit["invalid_reason_counts"].get(reason, 0) + 1
+    predicates = decision.context_evidence.state_predicates if decision.context_evidence is not None else []
+    if not predicates:
+        audit["without_predicate_evidence_count"] += 1
+    for predicate in predicates:
+        key = json.dumps([predicate.state_path, predicate.operator], separators=(",", ":"))
+        row = audit["predicates"].setdefault(key, {"state_path": predicate.state_path,
+            "operator": predicate.operator, "passed_count": 0, "failed_count": 0})
+        row["passed_count" if predicate.passed else "failed_count"] += 1
 
 
 def _build_risk_set(

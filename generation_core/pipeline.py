@@ -111,6 +111,8 @@ class GenerationPipeline:
             observation_duration=self.config.get("observation_duration"),
         )
         domain_catalog = self.domain_package.catalog()
+        domain_catalog = deepcopy(domain_catalog)
+        domain_catalog["coverage_profile"] = deepcopy(self.config.get("coverage_profile", domain_catalog.get("coverage_profile", {})))
         resolved_judge_model = (
             getattr(self.semantic_judge, "model_id", None)
             or judge_config.get("model")
@@ -590,7 +592,9 @@ class GenerationPipeline:
                 chat_path="training/qa_chat.jsonl",
             )
             writer.write_json("training_export_report.json", training_report)
+            mechanism_coverage = writer.write_coverage_report()
             quality = {
+                "mechanism_coverage": mechanism_coverage,
                 "passed": (
                     len(accepted) == episode_count
                     and validation_failures == 0

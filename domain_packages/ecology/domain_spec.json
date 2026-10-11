@@ -1,0 +1,25 @@
+{
+  "domain": "ecology",
+  "implementation_status": "implemented_synthetic_patch_food_web",
+  "entity_type_ids": ["ecology.ecoregion", "ecology.habitat_patch", "ecology.resource_pool", "ecology.population", "ecology.corridor"],
+  "context_relation_type_ids": ["ecology.patch_in_region", "ecology.resource_in_patch", "ecology.population_in_patch", "ecology.herbivore_consumes_resource", "ecology.invader_uses_resource", "ecology.predator_preys_on_herbivore", "ecology.invader_competes_with_herbivore", "ecology.corridor_from_patch", "ecology.corridor_to_patch"],
+  "mechanism_families": ["regional_disturbance", "resource_response", "conditional_consumer_response", "predator_response", "invasion_establishment", "corridor_dispersal"],
+  "required_temporal_model_families": ["exponential_arrival", "conditional_lognormal", "piecewise_exponential_hazard", "deterministic_delay"],
+  "topology_contract": {
+    "representation": "sparse_typed_relation_layers", "global_connectivity": "patch_corridor_tree_region_groups",
+    "n_ary_relation_policy": "reify_as_typed_entity", "spatial_coordinates_required": false,
+    "parameter_status": "synthetic_prior_pending_empirical_fit",
+    "relation_layers": [
+      {"relation_type_id":"ecology.patch_in_region","family":"typed_bipartite","source_type_ids":["ecology.habitat_patch"],"target_type_ids":["ecology.ecoregion"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"ecology.resource_in_patch","family":"typed_bipartite","source_type_ids":["ecology.resource_pool"],"target_type_ids":["ecology.habitat_patch"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"ecology.population_in_patch","family":"typed_bipartite","source_type_ids":["ecology.population"],"target_type_ids":["ecology.habitat_patch"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"ecology.herbivore_consumes_resource","family":"typed_bipartite","source_type_ids":["ecology.population"],"target_type_ids":["ecology.resource_pool"],"directed":true,"expected_out_degree":0,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"ecology.invader_uses_resource","family":"typed_bipartite","source_type_ids":["ecology.population"],"target_type_ids":["ecology.resource_pool"],"directed":true,"expected_out_degree":0,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"ecology.predator_preys_on_herbivore","family":"typed_bipartite","source_type_ids":["ecology.population"],"target_type_ids":["ecology.population"],"directed":true,"expected_out_degree":0,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"ecology.invader_competes_with_herbivore","family":"typed_bipartite","source_type_ids":["ecology.population"],"target_type_ids":["ecology.population"],"directed":true,"expected_out_degree":0,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"ecology.corridor_from_patch","family":"typed_bipartite","source_type_ids":["ecology.corridor"],"target_type_ids":["ecology.habitat_patch"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"ecology.corridor_to_patch","family":"typed_bipartite","source_type_ids":["ecology.corridor"],"target_type_ids":["ecology.habitat_patch"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false}
+    ]
+  },
+  "implementation_note": "Region membership, resource use, predation, competition and patch corridors are typed context eligibility only. Realized population responses require state thresholds and event clocks. Region roots affect local member patches; a corridor permits, but does not guarantee, actual invasion dispersal."
+}

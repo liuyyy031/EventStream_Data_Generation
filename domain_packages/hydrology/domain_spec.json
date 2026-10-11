@@ -1,0 +1,21 @@
+{
+  "domain": "hydrology",
+  "implementation_status": "implemented_event_scale_rainfall_runoff_lag_routing",
+  "entity_type_ids": ["hydrology.catchment", "hydrology.reach", "hydrology.gauge", "hydrology.management_unit"],
+  "context_relation_type_ids": ["hydrology.catchment_drains_to_reach", "hydrology.reach_flows_to_reach", "hydrology.gauge_observes_reach", "hydrology.gauge_reports_to_unit"],
+  "mechanism_families": ["initial_constant_loss", "volume_conserving_lag_routing", "confluence_superposition", "threshold_derivation", "sample_grounded_reporting"],
+  "required_temporal_model_families": ["exponential_arrival", "conditional_lognormal", "deterministic_delay"],
+  "topology_contract": {
+    "representation": "sparse_typed_relation_layers",
+    "global_connectivity": "one_synthetic_dendritic_basin_not_a_generic_random_grid",
+    "n_ary_relation_policy": "reify_as_typed_entity",
+    "spatial_coordinates_required": false,
+    "parameter_status": "synthetic_prior_pending_empirical_fit",
+    "relation_layers": [
+      {"relation_type_id":"hydrology.catchment_drains_to_reach","family":"typed_bipartite","source_type_ids":["hydrology.catchment"],"target_type_ids":["hydrology.reach"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"hydrology.reach_flows_to_reach","family":"constrained_degree_weighted_block","source_type_ids":["hydrology.reach"],"target_type_ids":["hydrology.reach"],"directed":true,"expected_out_degree":0,"max_out_degree":1,"max_in_degree":3,"allow_self_loops":false,"allow_cycles":false,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"hydrology.gauge_observes_reach","family":"typed_bipartite","source_type_ids":["hydrology.gauge"],"target_type_ids":["hydrology.reach"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"hydrology.gauge_reports_to_unit","family":"typed_bipartite","source_type_ids":["hydrology.gauge"],"target_type_ids":["hydrology.management_unit"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false}
+    ]
+  }
+}

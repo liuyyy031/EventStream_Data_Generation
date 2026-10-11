@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 from collections import Counter
+import math
 from typing import Any, Dict, List
 
 from .models import CandidateStatus, ContextEvidence, EpisodeResult
 from .topology import relation_is_active
+from .time_axis import TimeAxis
 
 
 def validate_episode_result(
@@ -16,6 +18,24 @@ def validate_episode_result(
     errors: List[str] = []
     warnings: List[str] = []
     checks: Dict[str, bool] = {}
+    checks["time_axis_contract"] = True
+    # Old in-memory records without a descriptor keep their seconds convention.
+    # An explicit descriptor must never silently use an incompatible unit scale.
+    if result.time_axis:
+        try:
+            axis = TimeAxis(**{
+                key: value for key, value in result.time_axis.items()
+                if key in {"kind", "unit", "origin_label", "resolution", "year_definition"}
+            })
+            scale = result.time_axis.get("seconds_per_unit")
+            if (not isinstance(scale, (int, float)) or isinstance(scale, bool)
+                    or not math.isfinite(scale) or not math.isclose(scale, axis.scale, rel_tol=1e-12)
+                    or result.time_axis.get("runtime_unit") != "second"
+                    or result.time_axis.get("direction") != "forward"):
+                raise ValueError("Time-axis unit scale or runtime direction is inconsistent")
+        except (ValueError, TypeError) as exc:
+            errors.append(str(exc))
+            checks["time_axis_contract"] = False
     entity_ids = {entity.entity_id for entity in result.entities}
     event_by_id = {event.event_id: event for event in result.events}
     context_relation_by_id = {
@@ -175,7 +195,7 @@ def validate_episode_result(
             if parent_id not in event_by_id:
                 errors.append(f"Candidate {candidate.candidate_id} has a missing parent")
                 checks["candidate_lifecycle"] = False
-        if candidate.parent_event_ids:
+        if candidate.parent_event_ids and all(p in event_by_id for p in candidate.parent_event_ids):
             latest_parent = max(
                 event_by_id[parent_id].temporal.occurrence_start_offset_seconds
                 for parent_id in candidate.parent_event_ids

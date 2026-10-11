@@ -7,6 +7,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Protocol, Tuple
 
 from .models import EpisodeResult
+from .claim_contract import build_claim_contract
 
 
 @dataclass
@@ -153,9 +154,7 @@ def _build_prompt(
     ]
     payload = {
         "review_contract": {
-            "domain_claim_scope": domain_catalog.get(
-                "clinical_safety_scope", {}
-            ),
+            "domain_claim_scope": build_claim_contract(domain_catalog),
             "root_event_semantics": {
                 "definition": "an event emitted by a mechanism with no event parents",
                 "entity_temporal_primacy": False,
@@ -177,6 +176,9 @@ def _build_prompt(
             "review_boundary": (
                 "Do not invent entity-state or temporal-precedence constraints "
                 "that are absent from the mechanism catalog and supplied evidence. "
+                "Respect every domain scope declaration, including false-valued "
+                "restrictions; do not expand a proxy, simplified model, or sampled "
+                "observation into an excluded real-world outcome. "
                 "Do not infer a diagnosis, prescription, or treatment-effect claim "
                 "when the domain catalog explicitly excludes it."
             ),

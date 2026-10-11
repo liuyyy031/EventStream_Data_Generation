@@ -1,0 +1,93 @@
+{
+  "transportation": {
+    "event_category_groups": {
+      "physical_process": ["road.incident.vehicle_collision", "road.traffic_state.congestion_onset", "road.traffic_state.normal_flow_restored", "weather.heavy_rain.start", "weather.heavy_rain.end"],
+      "management_action": ["road.operation.closure.start", "road.operation.closure.end"]
+    },
+    "recovery_or_clearing": ["road.traffic_state.normal_flow_restored", "weather.heavy_rain.end", "road.operation.closure.end"]
+  },
+  "healthcare": {
+    "event_category_groups": {
+      "observation": ["observation.vital_sign.temperature_recorded", "observation.vital_sign.oxygen_saturation_recorded", "observation.laboratory.result_recorded", "observation.follow_up.recorded"],
+      "management_action": ["specimen.collection.completed", "workflow.clinical_review.completed", "intervention.care_plan.adjusted"],
+      "derived_assessment": ["finding.configured_threshold_flag.created", "workflow.monitoring_alert.created", "finding.follow_up_status.assessed"]
+    },
+    "recovery_or_clearing": []
+  },
+  "distributed_systems": {
+    "event_category_groups": {
+      "physical_process": ["rpc.request.sent", "rpc.request.received", "rpc.processing.completed", "rpc.response.received", "service.degraded", "service.restored"],
+      "derived_assessment": ["rpc.request.timed_out", "rpc.retry.exhausted", "workflow.settled"]
+    },
+    "recovery_or_clearing": ["service.restored"]
+  },
+  "energy": {
+    "event_category_groups": {
+      "physical_process": ["line.fault.occurred", "load.supply.interrupted", "load.supply.restored", "load.demand.increased", "line.loading.high", "load.demand.normalized", "generator.output.reduced", "generator.output.recovered", "reserve.restored"],
+      "observation": ["reserve.low.observed"],
+      "management_action": ["breaker.opened", "line.repair.completed", "breaker.closed", "generator.reserve.dispatched"],
+      "derived_assessment": ["workflow.settled"]
+    },
+    "recovery_or_clearing": ["line.repair.completed", "breaker.closed", "load.supply.restored", "load.demand.normalized", "generator.output.recovered", "reserve.restored"]
+  },
+  "environment_pollution": {
+    "event_category_groups": {
+      "physical_process": ["source.spill.started", "treatment.bypass.started", "rainfall.started", "pollutant.loading.started", "pollutant.loading.ended", "plume.arrived", "plume.cleared"],
+      "observation": ["monitor.alert.issued", "monitor.normal.issued"],
+      "management_action": ["intake.closed", "intake.reopened"],
+      "derived_assessment": ["workflow.settled"]
+    },
+    "recovery_or_clearing": ["pollutant.loading.ended", "plume.cleared", "monitor.normal.issued", "intake.reopened"],
+    "report_sample_time_fields": {"environment_pollution.monitor.alert.issued": "sample_time_offset_seconds", "environment_pollution.monitor.normal.issued": "sample_time_offset_seconds"},
+    "report_scope_fields": {"environment_pollution.monitor.alert.issued": ["monitor_id"], "environment_pollution.monitor.normal.issued": ["monitor_id"]}
+  },
+  "ecology": {
+    "event_category_groups": {
+      "physical_process": ["climate.drought.started", "climate.drought.ended", "resource.availability.decreased", "resource.availability.restored", "population.herbivore.decreased", "population.predator.decreased", "population.herbivore.restored", "population.predator.restored", "resource.pulse.started", "resource.pulse.ended", "resource.availability.increased", "resource.availability.normalized", "population.herbivore.increased", "population.predator.increased", "population.invader.propagule_arrived", "population.invader.established", "population.invader.establishment_failed"]
+    },
+    "recovery_or_clearing": ["climate.drought.ended", "resource.availability.restored", "population.herbivore.restored", "population.predator.restored", "resource.pulse.ended", "resource.availability.normalized"]
+  },
+  "public_health": {
+    "event_category_groups": {
+      "physical_process": ["infection.exposed", "infection.infectious_started", "symptoms.started", "infection.recovered"],
+      "observation": ["assay.positive_reported", "assay.negative_reported", "surveillance.lab_positive_notified"],
+      "management_action": ["specimen.collected", "isolation.started", "isolation.ended", "cohort_risk.notified", "quarantine.started", "quarantine.ended", "quarantine.declined"]
+    },
+    "recovery_or_clearing": ["infection.recovered", "isolation.ended", "quarantine.ended"],
+    "report_sample_time_fields": {"public_health.assay.positive_reported": "sampled_at_offset_seconds", "public_health.assay.negative_reported": "sampled_at_offset_seconds", "public_health.surveillance.lab_positive_notified": "sampled_at_offset_seconds"},
+    "report_scope_fields": {"public_health.assay.positive_reported": ["person_id"], "public_health.assay.negative_reported": ["person_id"], "public_health.surveillance.lab_positive_notified": ["person_id"]}
+  },
+  "hydrology": {
+    "event_category_groups": {
+      "physical_process": ["rainfall.started", "rainfall.ended", "runoff.started", "runoff.ended", "flow.contribution.arrived", "flow.contribution.cleared", "discharge.threshold.exceeded", "discharge.threshold.cleared"],
+      "observation": ["gauge.sampled", "gauge.reported"],
+      "management_action": ["warning.issued", "warning.withdrawn"],
+      "derived_assessment": ["runoff.not_generated"]
+    },
+    "recovery_or_clearing": ["rainfall.ended", "runoff.ended", "flow.contribution.cleared", "discharge.threshold.cleared", "warning.withdrawn"],
+    "report_sample_time_fields": {"hydrology.gauge.reported": "sampled_at_offset_seconds"},
+    "report_scope_fields": {"hydrology.gauge.reported": ["gauge_id"]}
+  },
+  "agriculture": {
+    "event_category_groups": {
+      "physical_process": ["crop.established", "effective_rain.received", "supply.failed", "supply.restored", "water.readily_available.exhausted", "water.readily_available.restored"],
+      "observation": ["sensor.sampled", "sensor.reported"],
+      "management_action": ["irrigation.requested", "irrigation.started", "irrigation.completed", "irrigation.interrupted", "irrigation.deferred"],
+      "derived_assessment": ["phenology.thermal_milestone.reached"]
+    },
+    "recovery_or_clearing": ["supply.restored", "water.readily_available.restored", "irrigation.completed"],
+    "report_sample_time_fields": {"agriculture.sensor.reported": "sampled_at_offset_seconds"},
+    "report_scope_fields": {"agriculture.sensor.reported": ["field_id"]}
+  },
+  "climate": {
+    "event_category_groups": {
+      "physical_process": ["radiative_forcing.started", "radiative_forcing.ended", "temperature.warm_exceedance.started", "temperature.warm_exceedance.ended", "temperature.cold_exceedance.started", "temperature.cold_exceedance.ended"],
+      "observation": ["anomaly.sampled", "anomaly.reported"],
+      "management_action": ["monitoring.bulletin.issued", "monitoring.bulletin.withdrawn"],
+      "derived_assessment": ["forcing_superposition.evaluated", "temperature.warm_exceedance.persistence_confirmed", "temperature.cold_exceedance.persistence_confirmed"]
+    },
+    "recovery_or_clearing": ["radiative_forcing.ended", "temperature.warm_exceedance.ended", "temperature.cold_exceedance.ended", "monitoring.bulletin.withdrawn"],
+    "report_sample_time_fields": {"climate.anomaly.reported": "sampled_at_offset_seconds"},
+    "report_scope_fields": {"climate.anomaly.reported": ["unit_id"]}
+  }
+}

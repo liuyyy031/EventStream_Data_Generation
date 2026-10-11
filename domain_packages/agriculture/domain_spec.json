@@ -1,0 +1,19 @@
+{
+  "domain":"agriculture", "implementation_status":"implemented_synthetic_rootzone_thermal_irrigation",
+  "entity_type_ids":["agriculture.field","agriculture.crop_cohort","agriculture.soil_water_sensor","agriculture.irrigator","agriculture.supply_unit","agriculture.weather_zone"],
+  "context_relation_type_ids":["agriculture.crop_in_field","agriculture.sensor_observes_field","agriculture.irrigator_serves_field","agriculture.irrigator_fed_by_supply","agriculture.field_in_weather_zone"],
+  "mechanism_families":["rootzone_water_balance","thermal_milestones","sample_grounded_control","finite_rate_irrigation","shared_supply_failure"],
+  "required_temporal_model_families":["exponential_arrival","conditional_lognormal","deterministic_delay"],
+  "topology_contract":{
+    "representation":"sparse_typed_relation_layers","global_connectivity":"not_required",
+    "n_ary_relation_policy":"reify_as_typed_entity","spatial_coordinates_required":false,
+    "parameter_status":"synthetic_prior_pending_empirical_fit",
+    "relation_layers":[
+      {"relation_type_id":"agriculture.crop_in_field","family":"typed_bipartite","source_type_ids":["agriculture.crop_cohort"],"target_type_ids":["agriculture.field"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"max_in_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"agriculture.sensor_observes_field","family":"typed_bipartite","source_type_ids":["agriculture.soil_water_sensor"],"target_type_ids":["agriculture.field"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"max_in_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"agriculture.irrigator_serves_field","family":"typed_bipartite","source_type_ids":["agriculture.irrigator"],"target_type_ids":["agriculture.field"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"max_in_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"agriculture.irrigator_fed_by_supply","family":"typed_bipartite","source_type_ids":["agriculture.irrigator"],"target_type_ids":["agriculture.supply_unit"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"agriculture.field_in_weather_zone","family":"typed_bipartite","source_type_ids":["agriculture.field"],"target_type_ids":["agriculture.weather_zone"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false}
+    ]
+  }
+}

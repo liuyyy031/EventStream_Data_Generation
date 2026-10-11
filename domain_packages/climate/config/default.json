@@ -1,0 +1,15 @@
+{
+  "domain":"climate","seed":20261011,"episode_count":10,"max_events_per_episode":2048,
+  "time_axis":{"kind":"relative","unit":"year","resolution":0.000000001},
+  "semantic_judge":{"mode":"none","workers":1,"max_tokens":3000,"protocol_max_attempts":3,"max_generation_attempts":3},
+  "semantic_correction":{"mode":"llm","max_rounds":2,"max_tokens":4000,"protocol_max_attempts":3},
+  "qa_export":{"mode":"ground_truth_template","history_window_events":64},
+  "domain_config":{
+    "base_seed":20261011,"context_count":4,"nodes_per_context":1000,
+    "duration_seconds":946728000,"start_time":"2000-01-01T00:00:00+00:00",
+    "positive_forcing_range_w_m2":[1.2,2.8],"negative_forcing_range_w_m2":[-2.5,-1.0],
+    "forcing_duration_range_years":[5,14],"sample_period_years":1,"persistence_years":1,
+    "scenario_weights":{"warming_pulse":0.3,"cooling_pulse":0.25,"combined_warming":0.25,"opposing_forcings":0.2}
+  },
+  "output_directory":"data_generation/output_climate"
+}

@@ -1,0 +1,22 @@
+{
+  "domain": "environment_pollution",
+  "implementation_status": "implemented_synthetic_river_pollution_pulse",
+  "entity_type_ids": ["environment_pollution.reach", "environment_pollution.outfall", "environment_pollution.catchment", "environment_pollution.monitor", "environment_pollution.intake"],
+  "context_relation_type_ids": ["environment_pollution.reach_flows_to_reach", "environment_pollution.outfall_discharge_to_reach", "environment_pollution.catchment_drains_to_reach", "environment_pollution.monitor_observes_reach", "environment_pollution.intake_uses_reach", "environment_pollution.intake_receives_from_monitor"],
+  "mechanism_families": ["point_source", "diffuse_runoff", "advection", "attenuation", "monitoring", "intake_response", "workflow"],
+  "required_temporal_model_families": ["exponential_arrival", "conditional_lognormal", "deterministic_delay", "scheduled_time"],
+  "topology_contract": {
+    "representation": "sparse_typed_relation_layers", "global_connectivity": "one_dendritic_river_network",
+    "n_ary_relation_policy": "reify_as_typed_entity", "spatial_coordinates_required": false,
+    "parameter_status": "synthetic_prior_pending_empirical_fit",
+    "relation_layers": [
+      {"relation_type_id":"environment_pollution.reach_flows_to_reach","family":"constrained_degree_weighted_block","source_type_ids":["environment_pollution.reach"],"target_type_ids":["environment_pollution.reach"],"directed":true,"expected_out_degree":0,"max_out_degree":1,"community_mode":"none","allow_cycles":false,"ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"environment_pollution.outfall_discharge_to_reach","family":"typed_bipartite","source_type_ids":["environment_pollution.outfall"],"target_type_ids":["environment_pollution.reach"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"environment_pollution.catchment_drains_to_reach","family":"typed_bipartite","source_type_ids":["environment_pollution.catchment"],"target_type_ids":["environment_pollution.reach"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"environment_pollution.monitor_observes_reach","family":"typed_bipartite","source_type_ids":["environment_pollution.monitor"],"target_type_ids":["environment_pollution.reach"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"environment_pollution.intake_uses_reach","family":"typed_bipartite","source_type_ids":["environment_pollution.intake"],"target_type_ids":["environment_pollution.reach"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false},
+      {"relation_type_id":"environment_pollution.intake_receives_from_monitor","family":"typed_bipartite","source_type_ids":["environment_pollution.intake"],"target_type_ids":["environment_pollution.monitor"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false,"temporal_validity_allowed":false}
+    ]
+  },
+  "implementation_note": "One directed downstream link per non-outlet reach; confluences are permitted. A topology edge is only a possible flow path. Realized plume-parent relations require a positive propagated mass flux above the declared reporting floor. No PDE, dispersion, sorption or full hydrodynamics."
+}

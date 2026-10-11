@@ -1,0 +1,15 @@
+{
+  "domain":"climate", "implementation_status":"implemented_idealized_one_box_anomaly",
+  "entity_type_ids":["climate.climate_unit","climate.forcing_driver","climate.anomaly_observer","climate.climate_service"],
+  "context_relation_type_ids":["climate.driver_forces_unit","climate.observer_samples_unit","climate.observer_reports_to_service"],
+  "required_temporal_model_families":["exponential_arrival","deterministic_delay","conditional_lognormal"],
+  "topology_contract":{
+    "representation":"sparse_typed_relation_layers","global_connectivity":"not_required",
+    "n_ary_relation_policy":"reify_as_typed_entity","spatial_coordinates_required":false,"parameter_status":"synthetic_prior_pending_empirical_fit",
+    "relation_layers":[
+      {"relation_type_id":"climate.driver_forces_unit","family":"typed_bipartite","source_type_ids":["climate.forcing_driver"],"target_type_ids":["climate.climate_unit"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false},
+      {"relation_type_id":"climate.observer_samples_unit","family":"typed_bipartite","source_type_ids":["climate.anomaly_observer"],"target_type_ids":["climate.climate_unit"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"max_in_degree":1,"community_mode":"none","ensure_weak_connectivity":false},
+      {"relation_type_id":"climate.observer_reports_to_service","family":"typed_bipartite","source_type_ids":["climate.anomaly_observer"],"target_type_ids":["climate.climate_service"],"directed":true,"expected_out_degree":1,"max_out_degree":1,"community_mode":"none","ensure_weak_connectivity":false}
+    ]
+  }
+}

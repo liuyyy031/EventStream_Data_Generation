@@ -1,0 +1,15 @@
+{
+  "domain":"agriculture","seed":20261008,"episode_count":10,"max_events_per_episode":2048,
+  "time_axis":{"kind":"calendar","unit":"day","resolution":0.000001},
+  "semantic_judge":{"mode":"none","workers":1,"max_tokens":3000,"protocol_max_attempts":3,"max_generation_attempts":3},
+  "semantic_correction":{"mode":"llm","max_rounds":2,"max_tokens":4000,"protocol_max_attempts":3},
+  "qa_export":{"mode":"ground_truth_template","history_window_events":64},
+  "domain_config":{
+    "base_seed":20261008,"context_count":4,"nodes_per_context":1000,
+    "duration_seconds":3888000,"start_time":"2026-10-08T00:00:00+08:00",
+    "initial_depletion_fraction":0.15,"irrigation_target_fraction":0.2,
+    "effective_rain_range_mm":[15,60],"mean_temperature_range_c":[15,25],"reference_et_range_mm_day":[3,6],
+    "scenario_weights":{"rainfed_drydown":0.35,"irrigation_response":0.35,"shared_supply_interruption":0.3}
+  },
+  "output_directory":"data_generation/output_agriculture"
+}

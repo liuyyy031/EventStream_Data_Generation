@@ -1,0 +1,17 @@
+{
+  "domain":"public_health","seed":20260930,"episode_count":10,"max_events_per_episode":2048,
+  "time_axis":{"kind":"calendar","unit":"day","resolution":0.00001},
+  "semantic_judge":{"mode":"none","workers":1,"max_tokens":3000,"protocol_max_attempts":3,"max_generation_attempts":3},
+  "semantic_correction":{"mode":"llm","max_rounds":2,"max_tokens":4000,"protocol_max_attempts":3},
+  "qa_export":{"mode":"ground_truth_template","history_window_events":64},
+  "domain_config":{
+    "base_seed":20260930,"context_count":4,"nodes_per_context":1000,
+    "duration_seconds":1814400,"start_time":"2026-09-30T00:00:00+08:00",
+    "transmission_probability_per_contact":0.07,"symptom_probability":0.65,
+    "trace_coverage":0.7,"quarantine_adherence":0.8,
+    "assay_false_positive_probability":0.01,"assay_exposed_sensitivity":0.25,"assay_infectious_sensitivity":0.85,
+    "screening_day":4.0,
+    "scenario_weights":{"household_cluster":0.35,"workplace_cluster":0.3,"surveillance_response":0.35}
+  },
+  "output_directory":"data_generation/output_public_health"
+}

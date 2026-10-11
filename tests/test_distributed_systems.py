@@ -28,7 +28,7 @@ class DistributedSystemsTests(unittest.TestCase):
         return package, SimulationEngine(package, build_distributed_systems_temporal_models(), max_events=128)
 
     def test_all_domains_registered(self):
-        self.assertEqual(set(DOMAIN_BUILDERS), {"transportation", "healthcare", "distributed_systems"})
+        self.assertEqual(set(DOMAIN_BUILDERS), {"transportation", "healthcare", "distributed_systems", "energy", "environment_pollution", "ecology", "public_health", "hydrology", "agriculture", "climate"})
 
     def test_configuration_rejects_invalid_values(self):
         for config in ({"nodes_per_context": 10}, {"fanout": 1}, {"timeout_seconds": float("nan")},

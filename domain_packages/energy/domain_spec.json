@@ -1,0 +1,23 @@
+{
+  "domain": "energy",
+  "implementation_status": "implemented_synthetic_radial_distribution_feeder",
+  "entity_type_ids": ["energy.bus", "energy.line", "energy.breaker", "energy.load", "energy.generator"],
+  "context_relation_type_ids": ["energy.line_from_bus", "energy.line_to_bus", "energy.breaker_protects_line", "energy.load_attached_to_bus", "energy.generator_connected_to_bus"],
+  "mechanism_families": ["fault_protection", "overload_protection", "reserve_dispatch", "repair", "restoration", "workflow"],
+  "required_temporal_model_families": ["exponential_arrival", "conditional_lognormal", "deterministic_delay", "piecewise_exponential_hazard"],
+  "topology_contract": {
+    "representation": "sparse_typed_relation_layers",
+    "global_connectivity": "one_radial_feeder",
+    "n_ary_relation_policy": "reify_as_typed_entity",
+    "spatial_coordinates_required": false,
+    "parameter_status": "synthetic_prior_pending_empirical_fit",
+    "relation_layers": [
+      {"relation_type_id": "energy.line_from_bus", "family": "typed_bipartite", "source_type_ids": ["energy.line"], "target_type_ids": ["energy.bus"], "directed": true, "expected_out_degree": 1, "max_out_degree": 1, "community_mode": "none", "ensure_weak_connectivity": false, "temporal_validity_allowed": false},
+      {"relation_type_id": "energy.line_to_bus", "family": "typed_bipartite", "source_type_ids": ["energy.line"], "target_type_ids": ["energy.bus"], "directed": true, "expected_out_degree": 1, "max_out_degree": 1, "community_mode": "none", "ensure_weak_connectivity": false, "temporal_validity_allowed": false},
+      {"relation_type_id": "energy.breaker_protects_line", "family": "typed_bipartite", "source_type_ids": ["energy.breaker"], "target_type_ids": ["energy.line"], "directed": true, "expected_out_degree": 1, "max_out_degree": 1, "community_mode": "none", "ensure_weak_connectivity": false, "temporal_validity_allowed": false},
+      {"relation_type_id": "energy.load_attached_to_bus", "family": "typed_bipartite", "source_type_ids": ["energy.load"], "target_type_ids": ["energy.bus"], "directed": true, "expected_out_degree": 1, "max_out_degree": 1, "community_mode": "none", "ensure_weak_connectivity": false, "temporal_validity_allowed": false},
+      {"relation_type_id": "energy.generator_connected_to_bus", "family": "typed_bipartite", "source_type_ids": ["energy.generator"], "target_type_ids": ["energy.bus"], "directed": true, "expected_out_degree": 1, "max_out_degree": 1, "community_mode": "none", "ensure_weak_connectivity": false, "temporal_validity_allowed": false}
+    ]
+  },
+  "implementation_note": "A line is a typed edge entity from one upstream bus to one downstream bus, protected by one breaker. Static connectivity does not imply a realized outage. This is not AC power flow, voltage, frequency, or protection-coordination simulation."
+}

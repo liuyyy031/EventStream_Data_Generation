@@ -1,0 +1,18 @@
+{
+  "domain": "energy",
+  "seed": 20260930,
+  "episode_count": 10,
+  "max_events_per_episode": 128,
+  "semantic_judge": {"mode": "none", "workers": 1, "max_tokens": 2000, "protocol_max_attempts": 3, "max_generation_attempts": 3},
+  "semantic_correction": {"mode": "llm", "max_rounds": 2, "max_tokens": 3000, "protocol_max_attempts": 3},
+  "qa_export": {"mode": "ground_truth_template", "history_window_events": 64},
+  "domain_config": {
+    "base_seed": 20260930,
+    "context_count": 4,
+    "nodes_per_context": 1000,
+    "duration_seconds": 180.0,
+    "start_time": "2026-09-30T08:00:00+08:00",
+    "scenario_weights": {"line_fault": 0.4, "demand_surge": 0.3, "generation_shortfall": 0.3}
+  },
+  "output_directory": "data_generation/output_energy"
+}

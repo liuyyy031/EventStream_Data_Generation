@@ -5,10 +5,12 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 from dataclasses import asdict, dataclass, field
 from typing import Any, Dict, List, Protocol, Tuple
 
 from .models import EpisodeResult
+from .claim_contract import build_claim_contract
 from .semantic_judge import SemanticJudgeResult, _parse_json_object, _response_preview
 from .validation import validate_text_alignment
 
@@ -215,7 +217,7 @@ def _build_correction_prompt(
         "episode": result.episode_record(),
         "events": [event.to_dict() for event in result.events],
         "event_relations": [relation.to_dict() for relation in result.event_relations],
-        "domain_claim_scope": domain_catalog.get("clinical_safety_scope", {}),
+        "domain_claim_scope": build_claim_contract(domain_catalog),
         "sentences": [
             {
                 "sentence_index": index,
@@ -230,6 +232,8 @@ def _build_correction_prompt(
         "You correct grounded text for one synthetic event-sequence episode. "
         "The structured episode is immutable and has already passed deterministic "
         "validation. Address only the judge's text issue. Do not add explanations "
+        "outside domain_claim_scope: every declared restriction is binding, "
+        "including false-valued claims and simplified model boundaries. "
         "that are not supported by the supplied records. Preserve the distinction "
         "between causal, transition, statistical-influence, workflow, and derivation "
         "relations. Do not turn a threshold flag into a diagnosis, a workflow step "
@@ -275,7 +279,7 @@ def _validate_correction_object(
         missing = [
             literal
             for literal in required_literals.get(index, [])
-            if literal not in sentence
+            if not _literal_occurs(literal, sentence)
         ]
         if missing:
             return None, f"Corrected sentence {index} removed required literals: {missing}"
@@ -324,10 +328,13 @@ def _required_literals_by_sentence(
         relation.relation_id: relation for relation in result.event_relations
     }
     output: Dict[int, List[str]] = {}
+    sentences = text_alignment.get("sentences", [])
+    scale = result.time_axis.get("seconds_per_unit", 1.0)
     for claim in text_alignment.get("claims", []):
         index = claim.get("sentence_index")
-        if not isinstance(index, int):
+        if not isinstance(index, int) or not 0 <= index < len(sentences):
             continue
+        sentence = sentences[index]
         literals = output.setdefault(index, [])
         claim_relation_ids = claim.get("relation_ids", [])
         if not claim_relation_ids:
@@ -335,17 +342,29 @@ def _required_literals_by_sentence(
                 event = event_by_id.get(event_id)
                 if event is None:
                     continue
-                literals.append(
-                    f"+{event.temporal.occurrence_start_offset_seconds:.3f}"
-                )
-                literals.extend(
-                    f"{participant.role}={participant.entity_id}"
-                    for participant in event.participants
-                )
-                literals.extend(
-                    f"{key}={value}"
-                    for key, value in sorted(event.attributes.items())
-                )
+                # Protect facts actually projected into this sentence. Requiring
+                # invisible attributes or a seconds-only display makes valid
+                # JSON/day/year domain projections impossible to correct.
+                _add_present(literals, sentence, [event.event_id, event.event_type_id])
+                for value in (event.temporal.occurrence_start_offset_seconds,
+                              event.temporal.occurrence_start_offset_seconds / scale):
+                    _add_present(literals, sentence, [f"+{value:.{digits}f}" for digits in (3, 6, 9)], numeric=True)
+                _add_present(literals, sentence, [f"{p.role}={p.entity_id}" for p in event.participants])
+                fields = claim.get("evidence_fields", [])
+                attrs = (event.attributes if "attributes" in fields else
+                    {key: value for key, value in event.attributes.items() if f"attributes.{key}" in fields})
+                # For old claims without field declarations preserve all displayed facts.
+                if not fields:
+                    attrs = event.attributes
+                _add_present(literals, sentence, [json.dumps(attrs, ensure_ascii=False, sort_keys=True,
+                    separators=separators) for separators in ((",", ":"), (", ", ": "))])
+                for key, value in sorted(attrs.items()):
+                    literal = f"{key}={value}"
+                    for match in re.finditer(re.escape(literal) + r"(?=$|[,);\s])", sentence):
+                        # Keep the delimiter as well so 1 cannot silently become 10.
+                        end = match.end()
+                        suffix = sentence[end:end+1] if sentence[end:end+1] in {",", ")", ";"} else ""
+                        literals.append(literal + suffix)
         assertions = {
             item.get("relation_id"): item
             for item in claim.get("relation_assertions", [])
@@ -355,19 +374,30 @@ def _required_literals_by_sentence(
             relation = relation_by_id.get(relation_id)
             if relation is None:
                 continue
-            literals.extend(
-                [
-                    relation.rule_id,
-                    relation.source_event_id,
-                    relation.target_event_id,
-                    f"{relation.temporal_link.lag_seconds:.3f}",
-                ]
-            )
+            _add_present(literals, sentence, [relation.rule_id, relation.source_event_id,
+                relation.target_event_id, relation.relation_class])
+            for value in (relation.temporal_link.lag_seconds, relation.temporal_link.lag_seconds / scale):
+                _add_present(literals, sentence, [f"{value:.{digits}f}" for digits in (3, 6, 9)], numeric=True)
             predicate = assertions.get(relation_id, {}).get("surface_predicate")
             if isinstance(predicate, str) and predicate:
                 literals.append(predicate)
         output[index] = list(dict.fromkeys(literals))
     return output
+
+
+def _add_present(output: List[str], sentence: str, candidates: List[str], *, numeric=False) -> None:
+    for literal in candidates:
+        if numeric:
+            if _literal_occurs(literal, sentence):
+                output.append(literal)
+        elif literal and literal in sentence:
+            output.append(literal)
+
+
+def _literal_occurs(literal: str, sentence: str) -> bool:
+    if re.fullmatch(r"[+-]?\d+\.\d+", literal):
+        return bool(re.search(r"(?<![\d.])" + re.escape(literal) + r"(?![\d.])", sentence))
+    return literal in sentence
 
 
 def _text_hash(text_alignment: Dict[str, Any]) -> str:

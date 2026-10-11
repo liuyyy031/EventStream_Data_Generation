@@ -30,6 +30,7 @@ RELATION_SEMANTICS = {
 EVIDENCE_POLICIES = {
     "independent_root",
     "explicit_link",
+    "typed_binding_and_state",
     "rule_supported",
     "statistically_inferred",
     "configured_schedule",

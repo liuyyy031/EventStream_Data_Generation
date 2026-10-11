@@ -8,6 +8,7 @@ from typing import Any, Dict, IO
 
 from .models import EpisodeResult
 from .temporal import TemporalModelRegistry
+from .mechanism_coverage import MechanismCoverageAccumulator, coverage_summary
 
 
 class DatasetWriter:
@@ -40,13 +41,19 @@ class DatasetWriter:
         self._written_contexts: set[str] = set()
         self._written_entities: set[str] = set()
         self._written_context_relations: set[str] = set()
+        self.coverage = None
+        self._coverage_written = False
 
     def __enter__(self) -> "DatasetWriter":
         return self
 
-    def __exit__(self, *_: object) -> None:
-        for handle in self.handles.values():
-            handle.close()
+    def __exit__(self, exc_type, *_: object) -> None:
+        try:
+            if exc_type is None and self.coverage is not None and not self._coverage_written:
+                self.write_coverage_report()
+        finally:
+            for handle in self.handles.values():
+                handle.close()
 
     def write_manifest(
         self,
@@ -56,11 +63,15 @@ class DatasetWriter:
     ) -> None:
         self.write_json("manifest.json", payload)
         self.write_json("domain_catalog.json", domain_catalog)
+        self.coverage = MechanismCoverageAccumulator(domain_catalog)
         self.write_json(
             "temporal_model_registry.json", {"models": temporal_models.descriptors()}
         )
 
     def write_episode(self, result: EpisodeResult) -> None:
+        if self.coverage is not None:
+            self.coverage.add_result(result)
+            self._coverage_written = False
         if result.context_id not in self._written_contexts:
             self._write(
                 "contexts",
@@ -120,6 +131,14 @@ class DatasetWriter:
         with (self.output_dir / filename).open("w", encoding="utf-8", newline="\n") as handle:
             json.dump(payload, handle, ensure_ascii=False, indent=2)
             handle.write("\n")
+
+    def write_coverage_report(self) -> Dict[str, Any]:
+        if self.coverage is None:
+            raise ValueError("Write a domain catalog before a coverage report")
+        report = self.coverage.report()
+        self.write_json("mechanism_coverage_report.json", report)
+        self._coverage_written = True
+        return {"report_path": "mechanism_coverage_report.json", **coverage_summary(report)}
 
     def _write(self, stream: str, payload: Dict[str, Any]) -> None:
         self.handles[stream].write(json.dumps(payload, ensure_ascii=False) + "\n")

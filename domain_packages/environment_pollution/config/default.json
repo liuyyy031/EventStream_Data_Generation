@@ -1,0 +1,13 @@
+{
+  "domain": "environment_pollution", "seed": 20261001, "episode_count": 10,
+  "max_events_per_episode": 512,
+  "semantic_judge": {"mode":"none","workers":1,"max_tokens":2400,"protocol_max_attempts":3,"max_generation_attempts":3},
+  "semantic_correction": {"mode":"llm","max_rounds":2,"max_tokens":3000,"protocol_max_attempts":3},
+  "qa_export": {"mode":"ground_truth_template","history_window_events":64},
+  "domain_config": {
+    "base_seed":20261001,"context_count":4,"nodes_per_context":1000,
+    "duration_seconds":300.0,"start_time":"2026-10-01T08:00:00+08:00",
+    "scenario_weights":{"industrial_spill":0.35,"wastewater_bypass":0.3,"storm_runoff":0.35}
+  },
+  "output_directory":"data_generation/output_environment_pollution"
+}

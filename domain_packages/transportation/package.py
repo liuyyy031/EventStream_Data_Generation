@@ -210,6 +210,12 @@ class TransportationPackage:
             "domain": self.domain_id,
             "vocabulary_policy": "open_namespaced_hierarchy",
             "fit_status": "transparent_synthetic_prior_pending_empirical_fit",
+            "scope": {
+                "network": "synthetic_typed_transport_context_not_a_measured_city_network",
+                "mechanisms": "registered_incident_weather_closure_congestion_recovery_only",
+                "weather_influence_is_proven_causality": False,
+                "statistical_realism_claimed": False,
+            },
             "topology_contract": copy.deepcopy(self.domain_spec.topology_contract),
             "text_projection": {
                 "mode": "deterministic_grounded_projection",

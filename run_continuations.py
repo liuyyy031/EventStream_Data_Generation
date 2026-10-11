@@ -9,6 +9,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from data_generation.domain_packages.registry import DOMAIN_BUILDERS
+from data_generation.domain_packages.coverage_profiles import get_coverage_profile
 from data_generation.generation_core.scheduler import SimulationEngine
 from data_generation.generation_core.writer import DatasetWriter
 from data_generation.generation_core.validation import validate_text_alignment
@@ -37,6 +38,8 @@ def main():
         domain_config["scenario_weights"] = {args.scenario_family: 1.0}
     package = package_type(domain_config)
     models = build_models()
+    catalog = package.catalog()
+    catalog["coverage_profile"] = get_coverage_profile(args.domain)
     engine = SimulationEngine(package, models, max_events=args.max_events_per_episode)
     snapshot = engine.run(0, args.seed, stop_after_events=args.prefix_events)
     branches = []
@@ -49,7 +52,7 @@ def main():
             writer.write_manifest({"schema_version": "conditional-continuation-v1", "domain": args.domain,
                 "config": vars(args), "prefix_group_id": snapshot.state["prefix_group_id"],
                 "continuation_seed": result.episode_attributes["continuation_seed"],
-                "llm_called": False, "split_policy": "keep_entire_prefix_group_together"}, models, package.catalog())
+                "llm_called": False, "split_policy": "keep_entire_prefix_group_together"}, models, catalog)
             writer.write_episode(result)
             writer.write_episode_text(text)
             for qa in generate_episode_qa(result, text):

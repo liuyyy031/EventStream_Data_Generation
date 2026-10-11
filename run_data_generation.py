@@ -12,6 +12,7 @@ if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
 
 from data_generation.domain_packages.registry import DOMAIN_BUILDERS
+from data_generation.domain_packages.coverage_profiles import get_coverage_profile
 from data_generation.generation_core.pipeline import GenerationPipeline
 from data_generation.generation_core.distribution_calibration import (
     VALID_CALIBRATION_COMPONENTS,
@@ -134,6 +135,7 @@ def main() -> None:
         parser.error("--domain and the configured domain disagree")
     if domain not in DOMAIN_BUILDERS:
         raise ValueError(f"No executable domain package is registered for {domain!r}")
+    config.setdefault("coverage_profile", get_coverage_profile(domain))
     if args.episode_count is not None:
         config["episode_count"] = args.episode_count
     if args.nodes_per_context is not None:
